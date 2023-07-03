@@ -209,7 +209,7 @@ class DBSCAN_dataset(dstorm_dataset):
             cluster_path = os.path.join(self.output_path, cluster_props_name)
             img_props.to_excel(self.output_path + '/' + img_props_name)
             cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-             plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
+            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
         else:
             print('No Clusters were found in DBSCAN!')
         
@@ -290,7 +290,7 @@ class HDBSCAN_dataset(dstorm_dataset):
             cluster_path = os.path.join(self.output_path, cluster_props_name)
             img_props.to_excel(self.output_path + '/' + img_props_name)
             cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-             plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
+            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
         else:
             print('No clusters were found in HDBSCAN!')
         
@@ -349,7 +349,7 @@ class FOCAL_dataset(dstorm_dataset):
         
             img_props.to_excel(self.output_path + '/' + img_props_name)
             cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-             plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.output_path, dt_string)
+            plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.output_path, dt_string)
 
         else:
             print('No clusters were found in FOCAL!')
