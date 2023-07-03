@@ -200,7 +200,7 @@ class DBSCAN_dataset(dstorm_dataset):
 ##            dt_string = now.strftime("%Y.%m.%d %H:%M:%S") # YY/mm/dd H:M:S
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
 
-            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
+##            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
             
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
@@ -209,6 +209,7 @@ class DBSCAN_dataset(dstorm_dataset):
             cluster_path = os.path.join(self.output_path, cluster_props_name)
             img_props.to_excel(self.output_path + '/' + img_props_name)
             cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
+             plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
         else:
             print('No Clusters were found in DBSCAN!')
         
@@ -281,7 +282,7 @@ class HDBSCAN_dataset(dstorm_dataset):
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
 ##            dt_string = now.strftime("%Y.%m.%d %H:%M:%S") # YY/mm/dd H:M:S
 
-            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
+##            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
 
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
@@ -289,6 +290,7 @@ class HDBSCAN_dataset(dstorm_dataset):
             cluster_path = os.path.join(self.output_path, cluster_props_name)
             img_props.to_excel(self.output_path + '/' + img_props_name)
             cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
+             plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
         else:
             print('No clusters were found in HDBSCAN!')
         
@@ -338,7 +340,7 @@ class FOCAL_dataset(dstorm_dataset):
 ##            dt_string = (str(now.year) + '.' + str(now.month) + '.' + str(now.day) + ' ' + str(now.hour) + ':' + str(now.minute) + ':' + str(now.second)) # YY/mm/dd H:M:S
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S") # YY/mm/dd H:M:S
 
-            plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.output_path, dt_string)
+##            plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.output_path, dt_string)
             
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
@@ -347,6 +349,7 @@ class FOCAL_dataset(dstorm_dataset):
         
             img_props.to_excel(self.output_path + '/' + img_props_name)
             cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
+             plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.output_path, dt_string)
 
         else:
             print('No clusters were found in FOCAL!')
