@@ -158,16 +158,15 @@ class DBSCAN_dataset(dstorm_dataset):
         @param params:
         '''
         self.alg = 'DBSCAN'
-        self.min_npoints = params[4]
-        self.epsilon = params[5]
-        self.min_cluster_points = params[6]
+        self.epsilon = params[4]
+        self.min_samples = params[5]
         self.output_path = output_path
         ### if the user didn't set a PCA standard deviation
-        if len(params) <= 7:
+        if len(params) <= 6:
             self.pca_stddev = 1.0
         ### if the user did set a PCA standard deviation
         else:
-            self.pca_stddev = params[7]
+            self.pca_stddev = params[6]
         self.res = {}
         for i,val in enumerate(data):
             self.call_DBSCAN(val['filename'], val['pointcloud'])
@@ -184,14 +183,14 @@ class DBSCAN_dataset(dstorm_dataset):
 ##                                                     eps = self.epsilon,
 ##                                                     min_cluster_points = self.min_cluster_points)
         xyz_df = scanned_data.copy()
+        xyz_df = xyz_df[['x', 'y', 'z']]
         img_props, cluster_props, cluster_props_dict, xyzl = dbscan_cluster_and_group(xyz = xyz_df,
-                                                                                      min_npoints = self.min_npoints,
                                                                                       eps = self.epsilon,
-                                                                                      min_cluster_points = self.min_cluster_points,
+                                                                                      min_samples = self.min_samples,
                                                                                       fname = filename)
         if len(img_props.index) > 0:
             
-            new_fn = 'DBSCAN_' + str(self.min_npoints) + '_' + str(self.epsilon)
+            new_fn = 'DBSCAN_' + str(self.min_samples) + '_' + str(self.epsilon)
 
             fname = str(Path(filename).stem)
 
@@ -199,9 +198,9 @@ class DBSCAN_dataset(dstorm_dataset):
 
             now = datetime.now() # datetime object containing current date and time
 ##            dt_string = now.strftime("%Y.%m.%d %H:%M:%S") # YY/mm/dd H:M:S
-            dt_string = now.strftime("%Y/%m/%d %H:%M:%S") # YY/mm/dd H:M:S
+            dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
 
-            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path)
+            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
             
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
@@ -261,6 +260,7 @@ class HDBSCAN_dataset(dstorm_dataset):
         """
 
         xyz_df = scanned_data.copy()
+        xyz_df = xyz_df[['x', 'y', 'z']]
         img_props, cluster_props, cluster_props_dict, xyzl = hdbscan_cluster_and_group(
             xyz = xyz_df,
             min_cluster_points = self.min_cluster_points,
@@ -278,10 +278,10 @@ class HDBSCAN_dataset(dstorm_dataset):
     ##        plt_main(xyzl, filename, 'HDBSCAN', self.output_path)
             
             now = datetime.now() # datetime object containing current date and time
-            dt_string = now.strftime("%Y.%m.%d %H{c}%M{c}%S").format(c = ':') # YY/mm/dd H:M:S
+            dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
 ##            dt_string = now.strftime("%Y.%m.%d %H:%M:%S") # YY/mm/dd H:M:S
 
-            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path)
+            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
 
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
