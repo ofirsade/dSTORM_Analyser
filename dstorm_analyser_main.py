@@ -13,10 +13,14 @@ from shutil import rmtree, copyfile
 from datetime import datetime
 import time
 import re
-
-
-#from utils.Prescan import prep_data
 from utils.Prescan import dstorm_dataset
+import multiprocessing
+
+##if getattr(sys, 'frozen', False):
+##    os.environ['JOBLIB_MULTIPROCESSING'] = '0'
+
+multiprocessing.set_start_method('forkserver', force = True)
+multiprocessing.freeze_support()
 
 class AlignDelegate(QStyledItemDelegate):
     def initStyleOption(self, option, index):
@@ -49,6 +53,7 @@ class MainWindow(QMainWindow):
         self.checked_cbs = []
         self.output_dir = os.path.abspath(os.path.dirname(__file__))
         scriptDir = os.path.dirname(os.path.realpath(__file__))
+##        self.basedir = os.path.dirname(__file__)
         
         self.resize(1000, 800)
 ##        self.setWindowIcon(QtGui.QIcon('/Users/ofirsade/Desktop/UNI/Masters/Code/Analysis_Platform/dstormlogo2.png'))
@@ -59,7 +64,7 @@ class MainWindow(QMainWindow):
         # creating label
         self.label = QLabel(self)
         # loading image
-        self.pixmap = QPixmap(scriptDir + os.path.sep +  'dSTORMlogo1.png')
+        self.pixmap = QPixmap(os.path.join(scriptDir, 'icons', 'dSTORMlogo1.png'))
         self.smaller_pixmap = self.pixmap.scaled(300, 600, Qt.KeepAspectRatio, Qt.FastTransformation)
  
         # adding image to label
@@ -171,20 +176,40 @@ class MainWindow(QMainWindow):
         self.get_params()
         if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
             self.dataset = dstorm_dataset(self.path, self.output_dir, self.selected_files, self.algs, self.config, self.pbar)
+##            if self.dataset.completed == True:
+##                self.msg = QMessageBox()
+##                self.msg.setWindowTitle("Scan is Completed")
+##                self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
+##                self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
+##                self.msg.show()
 
-        elif self.prep_data == 0:
-            self.prep_data += 1
+##        elif self.prep_data == 0:
+##            self.prep_data += 1
+##            self.msg = QMessageBox()
+##            self.msg.setWindowTitle("Warning")
+##            self.msg.setText("You have not selected an output path!")
+##            self.msg.setInformativeText("To run without selecting a path, click Ok and run again")
+##            self.msg.setIcon(QMessageBox.Warning)
+##            self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
+##            self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
+##            self.msg.show()
+        else:
+            output_path = os.path.join(self.output_dir, "Results")
             self.msg = QMessageBox()
-            self.msg.setWindowTitle("Warning")
-            self.msg.setText("You have not selected an output path!")
-            self.msg.setInformativeText("To run without selecting a path, click Ok and run again")
-            self.msg.setIcon(QMessageBox.Warning)
+            self.msg.setText("The results of your scan(s) will be saved to the default directory")
+            self.msg.setInformativeText(str(output_path))
             self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
             self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Cancel
             self.msg.show()
-        else:
-            output_path = os.path.join(self.output_dir, "Results")
             self.dataset = dstorm_dataset(self.path, output_path, self.selected_files, self.algs, self.config, self.pbar)
+##            output_path = os.path.join(self.output_dir, "Results")
+##            self.dataset = dstorm_dataset(self.path, output_path, self.selected_files, self.algs, self.config, self.pbar)
+####            if self.dataset.completed == True:
+##                self.msg = QMessageBox()
+##                self.msg.setWindowTitle("Scan is Completed")
+##                self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
+##                self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
+##                self.msg.show()
 
 
     def get_params(self):
@@ -197,7 +222,7 @@ class MainWindow(QMainWindow):
                                          int(self.p1_xprecision.text()),
                                          int(self.p1_density_threshold2.text()),
                                          int(self.p1_density_threshold3.text()),
-                                         int(self.p1_min_pts.text()),
+##                                         int(self.p1_min_pts.text()),
                                          int(self.p1_epsilon.text()),
                                          int(self.p1_min_samples.text())]
                 if self.cb1.isChecked() == True:
@@ -210,7 +235,7 @@ class MainWindow(QMainWindow):
                                           int(self.p2_xprecision.text()),
                                           int(self.p2_density_threshold2.text()),
                                           int(self.p2_density_threshold3.text()),
-                                          int(self.p2_min_pts.text()),
+                                          int(self.p2_min_cluster_points.text()),
                                           int(self.p2_epsilon.text()),
                                           int(self.p2_min_samples.text()),
                                           str(self.p2_extracting_alg.text()),
@@ -234,10 +259,6 @@ class MainWindow(QMainWindow):
                     self.config['FOCAL'].append(float(self.p3_stdev_num.text()))
                     self.p3_layout.addRow("PCA Stdev",self.p3_stdev_num)
                 
-
-
-
-
         
     def prepare_scan(self):
         '''
@@ -265,29 +286,21 @@ class MainWindow(QMainWindow):
             if cb.isChecked() == True:
                 if 'DBSCAN' not in self.checked_cbs:
                     self.checked_cbs.append('DBSCAN')
-                print(self.checked_cbs)
-                rn1 = 7 # Number of rows for widget
+                rn1 = 6 # Number of rows for widget
                 self.p1_photoncount = QLineEdit('1000', self)
                 self.p1_xprecision = QLineEdit('100', self)
                 self.p1_density_threshold2 = QLineEdit('0', self)
                 self.p1_density_threshold3 = QLineEdit('0', self)
-                self.p1_min_pts = QLineEdit('22', self)
+##                self.p1_min_pts = QLineEdit('22', self)
                 self.p1_epsilon = QLineEdit('70', self)
                 self.p1_min_samples = QLineEdit('22', self)
-##                self.config['DBSCAN'] = [int(self.p1_photoncount.text()),
-##                                         int(self.p1_xprecision.text()),
-##                                         int(self.p1_density_threshold2.text()),
-##                                         int(self.p1_density_threshold3.text()),
-##                                         int(self.p1_min_pts.text()),
-##                                         int(self.p1_epsilon.text()),
-##                                         int(self.p1_min_samples.text())]
                 
                 self.p1 = QWidget()
                 self.p1_layout = QFormLayout()
                 self.p1_label = QLabel("Input DBSCAN Parameters")
                 self.p1_layout.addWidget(self.p1_label)
                 self.setLayout(self.p1_layout)
-                self.p1_layout.addRow("MinPts", self.p1_min_pts)
+##                self.p1_layout.addRow("MinPts", self.p1_min_pts)
                 self.p1_layout.addRow("Epsilon", self.p1_epsilon)
                 self.p1_layout.addRow("MinSamples", self.p1_min_samples)
                 self.p1_layout.addRow("2D Density Threshold",self.p1_density_threshold2)
@@ -299,7 +312,7 @@ class MainWindow(QMainWindow):
                     self.p1_stdev_num = QLineEdit('1.0', self)
 ##                    self.config['DBSCAN'].append(float(self.p1_stdev_num.text()))
                     self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
-                    rn1 = 8
+                    rn1 = 7
                 
                 self.p1.setLayout(self.p1_layout)
                 ##self.overall_layout.addWidget(Color('white'), 3, 0, rn1, 1)
@@ -329,7 +342,7 @@ class MainWindow(QMainWindow):
                 self.p2_xprecision = QLineEdit('100', self)
                 self.p2_density_threshold2 = QLineEdit('0', self)
                 self.p2_density_threshold3 = QLineEdit('0', self)
-                self.p2_min_pts = QLineEdit('15', self)
+                self.p2_min_cluster_points = QLineEdit('15', self)
                 self.p2_epsilon = QLineEdit('70', self)
                 self.p2_min_samples = QLineEdit('22', self)
                 self.p2_extracting_alg = QLineEdit('leaf', self)
@@ -349,7 +362,7 @@ class MainWindow(QMainWindow):
                 self.p2_label = QLabel("Input HDBSCAN Parameters")
                 self.p2_layout.addWidget(self.p2_label)
                 self.setLayout(self.p2_layout)
-                self.p2_layout.addRow("MinPts", self.p2_min_pts)
+                self.p2_layout.addRow("MinPts", self.p2_min_cluster_points)
                 self.p2_layout.addRow("Epsilon", self.p2_epsilon)
                 self.p2_layout.addRow("MinSamples", self.p2_min_samples)
                 self.p2_layout.addRow("Extracting Algorithm",self.p2_extracting_alg)
@@ -412,8 +425,8 @@ class MainWindow(QMainWindow):
                 self.setLayout(self.p3_layout)
 
                 self.p3_layout.addRow("Grid Size", self.p3_sigma)
-                self.p3_layout.addRow("Epsilon", self.p3_minL)
-                self.p3_layout.addRow("MinSamples", self.p3_minC)
+                self.p3_layout.addRow("minL", self.p3_minL)
+                self.p3_layout.addRow("minC", self.p3_minC)
                 self.p3_layout.addRow("2D Density Threshold",self.p3_density_threshold2)
                 self.p3_layout.addRow("3D Density Threshold",self.p3_density_threshold3)
                 self.p3_layout.addRow("Min Photon-count",self.p3_photoncount)
@@ -669,5 +682,3 @@ if __name__ == '__main__':
     win.show()
 
     app.exec_() #Kickstart the Qt event loop
-
-
