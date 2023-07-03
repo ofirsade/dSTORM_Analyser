@@ -392,4 +392,3 @@ def extract_AP(clusters):
     
     
     
-
