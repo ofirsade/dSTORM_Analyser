@@ -6,8 +6,6 @@ import hdbscan
 from sklearn.cluster import DBSCAN
 from scipy.spatial import distance_matrix
 from collections import Counter
-
-##from utils.focal import FOCAL
 from utils.Adjusted_FOCAL import FOCAL
 from utils.Extract import extract_AP
 
@@ -102,87 +100,6 @@ def sample_and_group(xyz, radius, max_samples=100, min_npoints=-1):
 
     return centroids[rows], groups
 
-'''
-def dbscan_cluster_and_group(xyz,
-                             min_npoints = 15,
-                             eps = 15,
-                             min_cluster_points = 15, 
-                             max_std_distance = 2.5):
-    """Use DBSCAN to cluster a given list of points, then bound them by rects.
-
-        :param xyz: list of lists where each inner list represents a point (row_x, col_y).
-        :param eps: int, DBSCAN parameter maximum distance (in pixels) between two points to consider
-                            them as a same cluster
-        :param min_samples: int, DBSCAN parameter minimum number of adjacent points in the cluster to define
-                        a point as core point to cluster.
-        :param min_cluster_points: int, minimum number of points to be considered as cluster.
-        :param max_std_distance: filter out points in cluster that exceeds a factor of std
-
-       :return:
-            new_xyz: sampled points position data, [nsample, 3]
-            new_points: sampled points data, [nsample, npoint, 3]
-    """
-
-    try:
-        clustering = DBSCAN(eps = eps, min_samples = min_npoints).fit(xyz)
-        labels = clustering.labels_
-        print(type(clustering))
-        print('DBSCAN Clustering: ', clustering)
-        
-    except BaseException as be:
-        print(be)
-                 
-    print('DBSCAN Clustering: ', clustering)
-    labels = clustering.labels_
-    xyz['Label'] = labels
-
-    return xyz
-
-def hdbscan_cluster_and_group(xyz,
-                              min_cluster_points = 15,
-                              epsilon_threshold = -9999,
-                              min_samples = 1,
-                              extracting_alg = "leaf",
-                              alpha = 1.0,
-                              max_std_distance = 2.5,):
-    """Use DBSCAN to cluster a given list of points, then bound them by rects.
-
-        :param xyz: list of lists where each inner list represents a point (row_x, col_y).
-        :param min_samples: int,
-        :param epsilon_threshold: int,
-        :param extracting_alg: str,
-        :param alpha: int,
-        :param min_cluster_points: int, minimum number of points to be considered as cluster.
-        :param max_std_distance: filter out points in cluster that exceeds a factor of std
-
-       :return:
-            new_xyz: sampled points position data, [nsample, 3]
-            new_points: sampled points data, [nsample, npoint, 3]
-    """
-
-    try:
-        if epsilon_threshold != -9999:
-            print("Using epsilon threshold: %d" % epsilon_threshold)
-            clustering = hdbscan.HDBSCAN(min_cluster_size = min_cluster_points, 
-                                         min_samples = min_samples,
-                                         alpha = alpha,
-                                         cluster_selection_method = extracting_alg,
-                                         cluster_selection_epsilon = epsilon_threshold)
-        else: 
-            clustering = hdbscan.HDBSCAN(min_cluster_size = min_cluster_points, 
-                                         min_samples = min_samples,
-                                         alpha = alpha,
-                                         cluster_selection_method = extracting_alg)
-        clustering.fit(xyz)
-    except BaseException as be:
-        print(be)
-
-    print('HDBSCAN Clustering: ', clustering)
-    labels = clustering.labels_
-    xyz['Label'] = labels
-    
-    return xyz
-'''
 
 def general_cluster_and_group(xyz, labels, fname):
     """
@@ -246,9 +163,8 @@ def general_cluster_and_group(xyz, labels, fname):
 
 
 def dbscan_cluster_and_group(xyz,
-                             min_npoints = 15,
                              eps = 15,
-                             min_cluster_points = 15, 
+                             min_samples = 15, 
                              max_std_distance = 2.5,
                              metric = 'euclidean',
                              alg = 'auto',
@@ -269,7 +185,7 @@ def dbscan_cluster_and_group(xyz,
     """
 
     try:
-        clustering = DBSCAN(eps = eps, min_samples = min_npoints,
+        clustering = DBSCAN(eps = eps, min_samples = min_samples,
                             metric = metric, algorithm = alg, leaf_size = 30)
 
         clustering.fit(xyz)
@@ -279,6 +195,7 @@ def dbscan_cluster_and_group(xyz,
                  
     print(clustering)
     labels = clustering.labels_
+    print('DBSCAN Labels:\n', labels)
     xyz['Label'] = labels
     
     img_props, clstr_props, cluster_props_dict = general_cluster_and_group(xyz, labels, fname)
@@ -286,8 +203,8 @@ def dbscan_cluster_and_group(xyz,
     if len(img_props.index) > 0:
 
         img_props['Scan Parameters'] = [['Algorithm: DBSCAN',
-                                         'min_npoints: ' + str(min_npoints), 'epsilon: ' + str(eps),
-                                         'min_cluster_points: ' + str(min_cluster_points),
+                                         'epsilon: ' + str(eps),
+                                         'min_samples: ' + str(min_samples),
                                          'max_std_distance: ' + str(max_std_distance),
                                          'metric: ' + str(metric),
                                          'alg: ' + str(alg)]]
