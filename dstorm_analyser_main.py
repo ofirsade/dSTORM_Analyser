@@ -130,12 +130,7 @@ class MainWindow(QMainWindow):
         self.btn2.setText('Select Input Directory')
         self.btn2.adjustSize()
         self.btn2.clicked.connect(self.get_dir)
-        self.overall_layout.addWidget(self.btn2, 1, 1)
-
-        self.cb1 = QCheckBox('Use PCA')
-        self.cb1.setChecked(False)
-##        self.cb1.stateChanged.connect(lambda:self.use_PCA(self.cb1))
-        self.overall_layout.addWidget(self.cb1, 1, 2)        
+        self.overall_layout.addWidget(self.btn2, 1, 1)   
 
         self.db = QCheckBox('DBSCAN')
         self.db.setChecked(False)
@@ -225,10 +220,10 @@ class MainWindow(QMainWindow):
 ##                                         int(self.p1_min_pts.text()),
                                          int(self.p1_epsilon.text()),
                                          int(self.p1_min_samples.text())]
-                if self.cb1.isChecked() == True:
+                if self.p1_upca.isChecked():
                     self.p1_stdev_num = QLineEdit('1.0', self)
                     self.config['DBSCAN'].append(float(self.p1_stdev_num.text()))
-                    self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
+##                    self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
 
             elif alg == 'HDBSCAN':
                 self.config['HDBSCAN'] = [int(self.p2_photoncount.text()),
@@ -240,10 +235,10 @@ class MainWindow(QMainWindow):
                                           int(self.p2_min_samples.text()),
                                           str(self.p2_extracting_alg.text()),
                                           float(self.p2_selection_alpha.text())]
-                if self.cb1.isChecked() == True:
+                if self.p2_upca.isChecked():
                     self.p2_stdev_num = QLineEdit('1.0', self)
                     self.config['HDBSCAN'].append(float(self.p2_stdev_num.text()))
-                    self.p2_layout.addRow("PCA Stdev",self.p2_stdev_num)
+##                    self.p2_layout.addRow("PCA Stdev",self.p2_stdev_num)
 
             elif alg == 'FOCAL':
                 self.config['FOCAL'] = [int(self.p3_photoncount.text()),
@@ -254,10 +249,10 @@ class MainWindow(QMainWindow):
                                         int(self.p3_minL.text()),
                                         int(self.p3_minC.text()),
                                         int(self.p3_minPC.text())] 
-                if self.cb1.isChecked() == True:
+                if self.p3_upca.isChecked():
                     self.p3_stdev_num = QLineEdit('1.0', self)
                     self.config['FOCAL'].append(float(self.p3_stdev_num.text()))
-                    self.p3_layout.addRow("PCA Stdev",self.p3_stdev_num)
+##                    self.p3_layout.addRow("PCA Stdev",self.p3_stdev_num)
                 
         
     def prepare_scan(self):
@@ -279,6 +274,44 @@ class MainWindow(QMainWindow):
         self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
 
 
+    def onStateChangedDB(self):
+
+        if self.db.isChecked():
+            if self.p1_upca.isChecked() & (self.rn1 == 7):
+                self.p1_stdev_num = QLineEdit('1.0', self)
+                self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
+                self.rn1 = 8
+            else:
+                if self.rn1 == 8:
+                    self.p1_layout.removeRow(self.p1_stdev_num)
+                    self.p1_stdev_num = None
+                    self.rn1 = 7
+
+    def onStateChangedHB(self):
+
+        if self.hb.isChecked():
+            if self.p2_upca.isChecked() & (self.rn2 == 9):
+                self.p2_stdev_num = QLineEdit('1.0', self)
+                self.p2_layout.addRow("PCA Stdev", self.p2_stdev_num)
+                self.rn2 = 10
+            else:
+                if self.rn2 == 10:
+                    self.p2_layout.removeRow(self.p2_stdev_num)
+                    self.p2_stdev_num = None
+                    self.rn2 = 9
+
+    def onStateChangedFB(self):
+
+        if self.fb.isChecked():
+            if self.p3_upca.isChecked() & (self.rn3 == 8):
+                self.p3_stdev_num = QLineEdit('1.0', self)
+                self.p3_layout.addRow("PCA Stdev", self.p3_stdev_num)
+                self.rn3 = 9
+            else:
+                if self.rn3 == 9:
+                    self.p3_layout.removeRow(self.p3_stdev_num)
+                    self.p3_stdev_num = None
+                    self.rn3 = 8
         
     def btnstate(self, cb):
         self.num_of_confs = 0
@@ -286,7 +319,7 @@ class MainWindow(QMainWindow):
             if cb.isChecked() == True:
                 if 'DBSCAN' not in self.checked_cbs:
                     self.checked_cbs.append('DBSCAN')
-                rn1 = 6 # Number of rows for widget
+                self.rn1 = 6 # Number of rows for widget
                 self.p1_photoncount = QLineEdit('1000', self)
                 self.p1_xprecision = QLineEdit('100', self)
                 self.p1_density_threshold2 = QLineEdit('0', self)
@@ -294,6 +327,9 @@ class MainWindow(QMainWindow):
 ##                self.p1_min_pts = QLineEdit('22', self)
                 self.p1_epsilon = QLineEdit('70', self)
                 self.p1_min_samples = QLineEdit('22', self)
+                self.p1_upca = QCheckBox('')
+                self.p1_upca.setChecked(False)
+                self.p1_upca.stateChanged.connect(self.onStateChangedDB)
                 
                 self.p1 = QWidget()
                 self.p1_layout = QFormLayout()
@@ -307,12 +343,7 @@ class MainWindow(QMainWindow):
                 self.p1_layout.addRow("3D Density Threshold",self.p1_density_threshold3)
                 self.p1_layout.addRow("Min Photon-count",self.p1_photoncount)
                 self.p1_layout.addRow("Max X-Precision", self.p1_xprecision)
-                
-                if self.cb1.isChecked() == True:
-                    self.p1_stdev_num = QLineEdit('1.0', self)
-##                    self.config['DBSCAN'].append(float(self.p1_stdev_num.text()))
-                    self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
-                    rn1 = 7
+                self.p1_layout.addRow("Use PCA", self.p1_upca)
                 
                 self.p1.setLayout(self.p1_layout)
                 ##self.overall_layout.addWidget(Color('white'), 3, 0, rn1, 1)
@@ -337,7 +368,7 @@ class MainWindow(QMainWindow):
             if cb.isChecked() == True:
                 if 'HDBSCAN' not in self.checked_cbs:
                     self.checked_cbs.append('HDBSCAN')
-                rn2 = 9
+                self.rn2 = 9
                 self.p2_photoncount = QLineEdit('1000', self)
                 self.p2_xprecision = QLineEdit('100', self)
                 self.p2_density_threshold2 = QLineEdit('0', self)
@@ -347,6 +378,9 @@ class MainWindow(QMainWindow):
                 self.p2_min_samples = QLineEdit('22', self)
                 self.p2_extracting_alg = QLineEdit('leaf', self)
                 self.p2_selection_alpha = QLineEdit('1.0', self)
+                self.p2_upca = QCheckBox('')
+                self.p2_upca.setChecked(False)
+                self.p2_upca.stateChanged.connect(self.onStateChangedHB)
 ##                self.config['HDBSCAN'] = [int(self.p2_photoncount.text()),
 ##                                          int(self.p2_xprecision.text()),
 ##                                          int(self.p2_density_threshold2.text()),
@@ -371,12 +405,7 @@ class MainWindow(QMainWindow):
                 self.p2_layout.addRow("3D Density Threshold",self.p2_density_threshold3)
                 self.p2_layout.addRow("Min Photon-count",self.p2_photoncount)
                 self.p2_layout.addRow("Max X-Precision", self.p2_xprecision)
-
-                if self.cb1.isChecked() == True:
-                    self.p2_stdev_num = QLineEdit('1.0', self)
-##                    self.config['HDBSCAN'].append(float(self.p2_stdev_num.text()))
-                    self.p2_layout.addRow("PCA Stdev",self.p2_stdev_num)
-                    rn2 = 10
+                self.p2_layout.addRow("Use PCA", self.p2_upca)
                 
                 self.p2.setLayout(self.p2_layout)
 ##                self.overall_layout.addWidget(Color('white'), 3, 1, rn2, 1)
@@ -400,7 +429,7 @@ class MainWindow(QMainWindow):
                 if 'FOCAL' not in self.checked_cbs:
                     self.checked_cbs.append('FOCAL')
                     print(self.checked_cbs)
-                rn3 = 8
+                self.rn3 = 8
                 self.p3_photoncount = QLineEdit('1000', self)
                 self.p3_xprecision = QLineEdit('100', self)
                 self.p3_density_threshold2 = QLineEdit('0', self)
@@ -409,6 +438,9 @@ class MainWindow(QMainWindow):
                 self.p3_minL = QLineEdit('1', self)
                 self.p3_minC = QLineEdit('25', self)
                 self.p3_minPC = QLineEdit('2000', self)
+                self.p3_upca = QCheckBox('')
+                self.p3_upca.setChecked(False)
+                self.p3_upca.stateChanged.connect(self.onStateChangedFB)
 ##                self.config['FOCAL'] = [int(self.p3_photoncount.text()),
 ##                                        int(self.p3_xprecision.text()),
 ##                                        int(self.p3_density_threshold2.text()),
@@ -432,11 +464,7 @@ class MainWindow(QMainWindow):
                 self.p3_layout.addRow("Min Photon-count",self.p3_photoncount)
                 self.p3_layout.addRow("Max X-Precision", self.p3_xprecision)
                 self.p3_layout.addRow("Min Average PhotonCount", self.p3_minPC)
-                if self.cb1.isChecked() == True:
-                    self.p3_stdev_num = QLineEdit('1.0', self)
-##                    self.config['FOCAL'].append(float(self.p3_stdev_num.text()))
-                    self.p3_layout.addRow("PCA Stdev",self.p3_stdev_num)
-                    rn3 = 9
+                self.p3_layout.addRow("Use PCA", self.p3_upca)
                 
                 self.p3.setLayout(self.p3_layout)
 ##                self.overall_layout.addWidget(Color('white'), 3, 2, rn3, 1)
