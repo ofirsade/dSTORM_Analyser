@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import *
   QMessageBox, QComboBox, QLineEdit, QAction, QCheckBox, QFileDialog, QVBoxLayout"""
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import * #QIcon
-from PyQt5.QtCore import * #pyqtSlot
+from PyQt5.QtCore import * #pyqtSlot, QThread, pyqtSignal
 import pyqtgraph as pg
 import sys, os
 from os import listdir, path, walk, mkdir, unlink, environ
@@ -16,11 +16,10 @@ import re
 from utils.Prescan import dstorm_dataset
 import multiprocessing
 
-##if getattr(sys, 'frozen', False):
-##    os.environ['JOBLIB_MULTIPROCESSING'] = '0'
-
 multiprocessing.set_start_method('forkserver', force = True)
 multiprocessing.freeze_support()
+
+
 
 class AlignDelegate(QStyledItemDelegate):
     def initStyleOption(self, option, index):
@@ -51,6 +50,7 @@ class MainWindow(QMainWindow):
 
         self.path = []
         self.checked_cbs = []
+        self.open_plots = False
         self.output_dir = os.path.abspath(os.path.dirname(__file__))
         scriptDir = os.path.dirname(os.path.realpath(__file__))
 ##        self.basedir = os.path.dirname(__file__)
@@ -130,7 +130,12 @@ class MainWindow(QMainWindow):
         self.btn2.setText('Select Input Directory')
         self.btn2.adjustSize()
         self.btn2.clicked.connect(self.get_dir)
-        self.overall_layout.addWidget(self.btn2, 1, 1)   
+        self.overall_layout.addWidget(self.btn2, 1, 1)
+
+        self.show_plots_cb = QCheckBox('Show Plots')
+        self.show_plots_cb.setChecked(False)
+        self.show_plots_cb.stateChanged.connect(lambda:self.checked_show_plots())
+        self.overall_layout.addWidget(self.show_plots_cb, 1, 2)
 
         self.db = QCheckBox('DBSCAN')
         self.db.setChecked(False)
@@ -150,6 +155,12 @@ class MainWindow(QMainWindow):
         self.fb.stateChanged.connect(lambda:self.btnstate(self.fb))
         self.overall_layout.addWidget(self.fb, 2, 2)
 
+##        self.cb1 = QCheckBox('Use PCA')
+##        self.cb1.setChecked(False)
+####        self.cb1.stateChanged.connect(lambda:self.use_PCA(self.cb1))
+##        self.cb1.stateChanged.connect(self.onStateChanged)
+##        self.overall_layout.addWidget(self.cb1, 1, 2)
+
         self.btn6 = QPushButton(self)
         self.btn6.setText('Select Output Directory')
         self.btn6.adjustSize()
@@ -168,9 +179,21 @@ class MainWindow(QMainWindow):
         """
         Get all relevant data from file(s) input by the user
         """
+        htmls_path = os.path.join(self.output_dir, 'Plots')        
+        csvs_path = os.path.join(self.output_dir, 'CSVs')
+
+        if not os.path.exists(htmls_path):
+          os.mkdir(htmls_path)
+        else:
+          print("Folder %s already exists" % htmls_path)
+        if not os.path.exists(csvs_path):
+            os.mkdir(csvs_path)
+        else:
+          print("Folder %s already exists" % csvs_path)
+          
         self.get_params()
         if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
-            self.dataset = dstorm_dataset(self.path, self.output_dir, self.selected_files, self.algs, self.config, self.pbar)
+            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
 ##            if self.dataset.completed == True:
 ##                self.msg = QMessageBox()
 ##                self.msg.setWindowTitle("Scan is Completed")
@@ -196,7 +219,7 @@ class MainWindow(QMainWindow):
             self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
             self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Cancel
             self.msg.show()
-            self.dataset = dstorm_dataset(self.path, output_path, self.selected_files, self.algs, self.config, self.pbar)
+            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
 ##            output_path = os.path.join(self.output_dir, "Results")
 ##            self.dataset = dstorm_dataset(self.path, output_path, self.selected_files, self.algs, self.config, self.pbar)
 ####            if self.dataset.completed == True:
@@ -205,6 +228,18 @@ class MainWindow(QMainWindow):
 ##                self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
 ##                self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
 ##                self.msg.show()
+##        if dataset.complete == True:
+##            self.initialise_window()
+##
+##    def initialise_window(self):
+##        """
+##        After a run of the algorithms has finished, reset the window
+##        """
+##        self.path = []
+##        self.checked_cbs = []
+##        self.open_plots = False
+##        self.output_dir = os.path.abspath(os.path.dirname(__file__))
+##        scriptDir = os.path.dirname(os.path.realpath(__file__))
 
 
     def get_params(self):
@@ -223,7 +258,6 @@ class MainWindow(QMainWindow):
                 if self.p1_upca.isChecked():
                     self.p1_stdev_num = QLineEdit('1.0', self)
                     self.config['DBSCAN'].append(float(self.p1_stdev_num.text()))
-##                    self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
 
             elif alg == 'HDBSCAN':
                 self.config['HDBSCAN'] = [int(self.p2_photoncount.text()),
@@ -238,7 +272,6 @@ class MainWindow(QMainWindow):
                 if self.p2_upca.isChecked():
                     self.p2_stdev_num = QLineEdit('1.0', self)
                     self.config['HDBSCAN'].append(float(self.p2_stdev_num.text()))
-##                    self.p2_layout.addRow("PCA Stdev",self.p2_stdev_num)
 
             elif alg == 'FOCAL':
                 self.config['FOCAL'] = [int(self.p3_photoncount.text()),
@@ -252,7 +285,6 @@ class MainWindow(QMainWindow):
                 if self.p3_upca.isChecked():
                     self.p3_stdev_num = QLineEdit('1.0', self)
                     self.config['FOCAL'].append(float(self.p3_stdev_num.text()))
-##                    self.p3_layout.addRow("PCA Stdev",self.p3_stdev_num)
                 
         
     def prepare_scan(self):
@@ -270,9 +302,42 @@ class MainWindow(QMainWindow):
 
         # Creating progress bar
         self.pbar = QProgressBar(self)
+        self.pbar.setValue(0)
         self.pbar.setGeometry(30, 40, 200, 25)
         self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
 
+##    def onStateChanged(self):
+##
+##        if self.cb1.isChecked():
+##            if self.db.isChecked():
+####                if self.rn1 == 6:
+##                    self.p1_stdev_num = QLineEdit('1.0', self)
+##                    self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
+##
+##            if self.hb.isChecked():
+####                if self.rn2 == 9:
+##                    self.p2_stdev_num = QLineEdit('1.0', self)
+##                    self.p2_layout.addRow("PCA Stdev", self.p2_stdev_num)
+##
+##            if self.fb.isChecked():
+####                if self.rn3 == 8:
+##                    self.p3_stdev_num = QLineEdit('1.0', self)
+##                    self.p3_layout.addRow("PCA Stdev", self.p3_stdev_num)
+##
+##        else:
+##            if self.db.isChecked():
+####                self.rn1 = 6
+##                self.p1_layout.removeRow(self.p1_stdev_num)
+##                self.p1_stdev_num = None
+##            if self.hb.isChecked():
+####                self.rn2 = 9
+##                self.p2_layout.removeRow(self.p2_stdev_num)
+##                self.p2_stdev_num = None
+##            if self.fb.isChecked():
+####                self.rn3 = 8
+##                self.p3_layout.removeRow(self.p3_stdev_num)
+##                self.p3_stdev_num = None
+                
 
     def onStateChangedDB(self):
 
@@ -312,14 +377,15 @@ class MainWindow(QMainWindow):
                     self.p3_layout.removeRow(self.p3_stdev_num)
                     self.p3_stdev_num = None
                     self.rn3 = 8
-        
+
+    
     def btnstate(self, cb):
         self.num_of_confs = 0
         if cb.text() == 'DBSCAN':
             if cb.isChecked() == True:
                 if 'DBSCAN' not in self.checked_cbs:
                     self.checked_cbs.append('DBSCAN')
-                self.rn1 = 6 # Number of rows for widget
+                self.rn1 = 7 # Number of rows for widget1
                 self.p1_photoncount = QLineEdit('1000', self)
                 self.p1_xprecision = QLineEdit('100', self)
                 self.p1_density_threshold2 = QLineEdit('0', self)
@@ -343,7 +409,7 @@ class MainWindow(QMainWindow):
                 self.p1_layout.addRow("3D Density Threshold",self.p1_density_threshold3)
                 self.p1_layout.addRow("Min Photon-count",self.p1_photoncount)
                 self.p1_layout.addRow("Max X-Precision", self.p1_xprecision)
-                self.p1_layout.addRow("Use PCA", self.p1_upca)
+                self.p1_layout.addRow("Use PCA", self.p1_upca)                
                 
                 self.p1.setLayout(self.p1_layout)
                 ##self.overall_layout.addWidget(Color('white'), 3, 0, rn1, 1)
@@ -381,15 +447,6 @@ class MainWindow(QMainWindow):
                 self.p2_upca = QCheckBox('')
                 self.p2_upca.setChecked(False)
                 self.p2_upca.stateChanged.connect(self.onStateChangedHB)
-##                self.config['HDBSCAN'] = [int(self.p2_photoncount.text()),
-##                                          int(self.p2_xprecision.text()),
-##                                          int(self.p2_density_threshold2.text()),
-##                                          int(self.p2_density_threshold3.text()),
-##                                          int(self.p2_min_pts.text()),
-##                                          int(self.p2_epsilon.text()),
-##                                          int(self.p2_min_samples.text()),
-##                                          str(self.p2_extracting_alg.text()),
-##                                          float(self.p2_selection_alpha.text())]
                 
                 self.p2 = QWidget()
                 self.p2_layout = QFormLayout()
@@ -406,7 +463,7 @@ class MainWindow(QMainWindow):
                 self.p2_layout.addRow("Min Photon-count",self.p2_photoncount)
                 self.p2_layout.addRow("Max X-Precision", self.p2_xprecision)
                 self.p2_layout.addRow("Use PCA", self.p2_upca)
-                
+
                 self.p2.setLayout(self.p2_layout)
 ##                self.overall_layout.addWidget(Color('white'), 3, 1, rn2, 1)
 ##                self.overall_layout.addWidget(self.p2, 3, 1, rn2, 1)
@@ -526,13 +583,61 @@ class MainWindow(QMainWindow):
         self.listwidget.adjustSize()
         self.overall_layout.addWidget(self.listwidget, 1, 3, 3, 2)
 
+        self.sel_all_btn = QPushButton(self)
+        self.sel_all_btn.setText('Select All')
+        self.sel_all_btn.adjustSize()
+        self.sel_all_btn.setToolTip('Select all file(s) for analysis')
+        self.sel_all_btn.clicked.connect(self.select_all_files)
+        self.overall_layout.addWidget(self.sel_all_btn, 4, 3, 1, 2)
+
+        self.deselect_btn = QPushButton(self)
+        self.deselect_btn.setText('Deselect All')
+        self.deselect_btn.adjustSize()
+        self.deselect_btn.setToolTip('Deselect all file(s) for analysis')
+        self.deselect_btn.clicked.connect(self.deselect_all_files)
+        self.overall_layout.addWidget(self.deselect_btn, 5, 3, 1, 2)
+        
         self.del_btn = QPushButton(self)
         self.del_btn.setText('Remove file(s)')
         self.del_btn.adjustSize()
         self.del_btn.setToolTip('Remove selected file(s) from list')
         self.del_btn.clicked.connect(self.remove_files)
-        self.overall_layout.addWidget(self.del_btn, 4, 3, 1, 2)
-        
+        self.overall_layout.addWidget(self.del_btn, 6, 3, 1, 2)
+
+
+    def select_all_files(self):
+        """
+        Selects all uploaded files for analysis
+        """
+        for index in range(self.listwidget.count()): # Iterate through all items in the list
+            self.listwidget.item(index).setSelected(True)
+            t = self.listwidget.item(index).text()
+            if t not in self.selected_files:
+                self.selected_files.append(t)
+                print(t, ' has been added to selected files list')
+        if len(self.selected_files) >= 1:
+            self.db.setCheckable(True)
+            self.hb.setCheckable(True)
+            self.fb.setCheckable(True)
+            
+
+
+    def deselect_all_files(self):
+        """
+        Deselects all files in the uploaded files list, but keeps them available
+        """
+        for index in range(self.listwidget.count()):
+            self.listwidget.item(index).setSelected(False)
+            t = self.listwidget.item(index).text()
+            if t in self.selected_files:
+                self.selected_files.remove(t)
+                print(t, ' has been removed from selected files list')
+        if len(self.selected_files) < 1:
+            self.db.setCheckable(False)
+            self.hb.setCheckable(False)
+            self.fb.setCheckable(False)
+            
+    
 
     def remove_files(self):
         """
@@ -595,6 +700,15 @@ class MainWindow(QMainWindow):
         self.outdir = QLabel(str(self.output_dir))
         self.overall_layout.addWidget(self.outdir, 6, 1, 1, 2)
 
+    def checked_show_plots(self):
+        """
+        Tells the plotting function to open plots when they're ready, and not only save them
+        """
+        if self.show_plots_cb.isChecked():
+            self.open_plots = True
+        else:
+            self.open_plots = False
+
 
 ##    def on_change(self):
 ##
@@ -623,78 +737,19 @@ class MainWindow(QMainWindow):
             self.db.setCheckable(True)
             self.hb.setCheckable(True)
             self.fb.setCheckable(True)
+        else:
+            self.db.setCheckable(False)
+            self.hb.setCheckable(False)
+            self.fb.setCheckable(False)
         
 
     def use_PCA(self, cb):
 
-        if cb.isChecked() == True:
-            ### Use PCA Noise Reduction (default --> no change)
+        if cb.isChecked() == True: # Use PCA Noise Reduction (default --> no change)
             pass
-        else:
-            ### Do not use PCA Noise Reduction
+        else: # Do not use PCA Noise Reduction
             pass
     
-
-##    def show_in_window(fig):
-##    
-##        plotly.offline.plot(fig, filename='name.html', auto_open=False)
-##        
-##        app = QApplication(sys.argv)
-##        web = QWebEngineView()
-##        file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "name.html"))
-##        web.load(QUrl.fromLocalFile(file_path))
-##        web.show()
-##        sys.exit(app.exec_())
-##
-##
-##    def plot_res(xyzl, fname, unique_labels, alg, output_path):
-##
-##        fig = make_subplots(
-##            rows = 1, 
-##            cols = 1, 
-##    ##        vertical_spacing=0.05,
-##            subplot_titles=orig_df.filename.to_list()
-##        )
-##
-##        
-##        bg_df = xyzl.loc[xyzl['Label'] == -1]
-##        clustered_df = xyzl.loc[xyzl['Label'] != -1]
-##        # Probe 0
-##        fig.add_trace(
-##            go.Scattergl(
-##                x = bg_df['x'].values,
-##                y = bg_df['y'].values,
-##                mode = 'markers',
-##                marker=dict(
-##                    color='grey',           # set color to an array/list of desired values
-##                    opacity=0.1
-##                )
-##            ),
-##            row = 1, col = 1
-##        )
-##            
-##        # Draw clusters
-##        for i in unique_labels:
-##            pc = clustered_df.loc[clustered_df['Label'] == i]
-##            
-##            fig.add_trace(
-##                go.Scattergl(
-##                    x = pc['x'].values,
-##                    y = pc['y'].values,
-##                    mode = 'markers',
-##                    marker = dict(
-##                        color = i, #cmap(np.sqrt(colocalization[i])),    
-##                        colorscale = 'rainbow',
-##                        opacity = 0.5
-##                    )
-##                ),
-##                row = 1, col = 1
-##            )
-##        
-##        fig.update_xaxes(range = [0, 18e3], row = 1, col = 1)     
-##        fig.update_yaxes(scaleanchor = 'x', scaleratio = 1, row = 1, col = 1)
-##
-##        show_in_window(fig)
         
 
     def close_window(self):
@@ -710,3 +765,4 @@ if __name__ == '__main__':
     win.show()
 
     app.exec_() #Kickstart the Qt event loop
+
