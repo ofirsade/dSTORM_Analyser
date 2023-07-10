@@ -7,25 +7,30 @@ from tqdm import tqdm
 from multiprocessing.pool import ThreadPool as Pool
 from traceback import format_exc
 from pandas.io.parsers import read_csv
-import statistics
+from datetime import datetime
+from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtWidgets import QWidget, QPushButton, QProgressBar, QVBoxLayout, QApplication
+from pathlib import Path
+
+from utils.Extract import extract_AP, pca_outliers_and_axes
 from utils.Cluster_Identification_Algorithms import sample_and_group, dbscan_cluster_and_group,\
      hdbscan_cluster_and_group, focal_cluster_and_group
-from utils.Extract import extract_AP
-from collections import Counter
-from datetime import datetime
-from pathlib import Path
 from utils.Plot import plot_res
+import time
+import sys
+
 
 
 class dstorm_dataset(data.Dataset):
     
-    def __init__(self, input_path, output_path, selected_files, algs, config, pbar, workers = 8):
+    def __init__(self, input_path, csvs_path, htmls_path, selected_files, algs, config, open_plots, pbar, workers = 8):
         '''
         @params:
             input_path - str, path to file/files/directory
             output_path - str, path to desired output directory
             algs - list of bools, [DBSCAN, HDBSCAN, FOCAL]
             config - list, configuration parameters for each algorithm set to TRUE in algs
+            open_plots - bool, if True: open plots when ready, elif False: only save the plots to output directory
             pw - PlotWindow, empty window to show results
             pbar - progress bar
         '''
@@ -35,6 +40,7 @@ class dstorm_dataset(data.Dataset):
         self.px_th = 1000.0
         self.clust_res = {}
         self.error = None
+        self.complete = False
 
         for alg in algs:
             if alg[1] == True:
@@ -66,7 +72,9 @@ class dstorm_dataset(data.Dataset):
                 result = pool.imap_unordered(self.parse_row, fileslist) # Load files
                 for r in result:
                     df_rows.append(r)
-                    ##pbar.update(1)
+##                    pb = PBar()
+##                    pb.show()
+                    
         finally:
             pool.close()
             pool.terminate()
@@ -85,15 +93,16 @@ class dstorm_dataset(data.Dataset):
             if alg[1] == True:
                 params = config.get(str(alg[0]))
                 if alg[0] == 'DBSCAN':
-                    db = DBSCAN_dataset(self.data, params, output_path)
+                    db = DBSCAN_dataset(self.data, params, csvs_path, htmls_path, open_plots)
                     self.clust_res[alg[0]] = db.res
                 elif alg[0] == 'HDBSCAN':
-                    hdb = HDBSCAN_dataset(self.data, params, output_path)
+                    hdb = HDBSCAN_dataset(self.data, params, csvs_path, htmls_path, open_plots)
                     self.clust_res[alg[0]] = hdb.res
                 elif alg[0] == 'FOCAL':
-                    foc = FOCAL_dataset(self.data, params, output_path)
+                    foc = FOCAL_dataset(self.data, params, csvs_path, htmls_path, open_plots)
                     self.clust_res[alg[0]] = foc.res
 ##                pbar.setValue(i)
+        self.complete = True
 
         
     def parse_path(self, path):
@@ -112,14 +121,18 @@ class dstorm_dataset(data.Dataset):
         **********************************************
         @ret df_row: dict, with one dataframe value and one int value
         """
-        self.orig_loc_num = len(pointcloud.index)
-        print("Dropping localisations due to photon intensity filter (%f)" % self.pc_th)
+        self.orig_loc_num = len(pointcloud.index) # Original number of points before any filteration
+        
         tmp_pointcloud = pointcloud.loc[pointcloud['photon-count'] >= self.pc_th]
-
-        print("Dropping localisations due to x-precision filter (%f)" % self.px_th)
+        pc_dp = self.orig_loc_num - len(tmp_pointcloud) # Number of points dropped by photoncount filter
+        print("Dropping " + str(pc_dp) + " localisations due to photon intensity filter (%f)" % self.pc_th)
+        
         fin_pointcloud = tmp_pointcloud.loc[tmp_pointcloud['precisionx'] <= self.px_th]
-##        pc = fin_pointcloud[['x', 'y', 'z']]
+        xp_dp = len(tmp_pointcloud) - len(fin_pointcloud) # Number of points dropped by x-precision filter
+        print("Dropping " + str(xp_dp) + " localisations due to x-precision filter (%f)" % self.px_th)
+
         pc = fin_pointcloud[['x', 'y', 'z', 'photon-count']]
+        
         df_row = {'pointcloud': pc, 'num_of_points': len(pc)}
         return df_row
 
@@ -147,43 +160,51 @@ class dstorm_dataset(data.Dataset):
 
         return row
 
+
 # ************************************************ Sub Classes of Cluster ID Algorithms ************************************************ #
 
 class DBSCAN_dataset(dstorm_dataset):
 
-    def __init__(self, data, params, output_path):
+    def __init__(self, data, params, csvs_path, htmls_path, show_plts):
         '''
         Creates an object of 3D localisations, each with a cluster label given by DBSCAN
         @param data: 
         @param params:
         '''
+
         self.alg = 'DBSCAN'
         self.epsilon = params[4]
         self.min_samples = params[5]
-        self.output_path = output_path
-        ### if the user didn't set a PCA standard deviation
-        if len(params) <= 6:
-            self.pca_stddev = 1.0
-        ### if the user did set a PCA standard deviation
-        else:
+        self.csvs_path = csvs_path
+        self.htmls_path = htmls_path
+        self.show_plts = show_plts
+        if len(params) <= 6: # if the user didn't set a PCA standard deviation
+            self.pca_stddev = None
+        else: # if the user did set a PCA standard deviation
             self.pca_stddev = params[6]
         self.res = {}
-        for i,val in enumerate(data):
+        for i,val in enumerate(data):            
             self.call_DBSCAN(val['filename'], val['pointcloud'])
+        
 
 
     def call_DBSCAN(self, filename, scanned_data):
         """
         Calls DBSCAN and creates self.res - the resulting array of localisations with cluster labels
-        @param filename: the filename of the data to run DBSCAN on
-        @param scanned_data: the localisations to run DBSCAN on
+        @param filename: the filename of the data to run HDBSCAN on
+        @param scanned_data: the localisations to run HDBSCAN on
         """
-##        clustered_df, xyzl_df, params, number_of_locs, number_of_locs_assigned_to_clusters = dbscan_cluster_and_group(xyz = scanned_data,
-##                                                     min_npoints = self.min_npoints,
-##                                                     eps = self.epsilon,
-##                                                     min_cluster_points = self.min_cluster_points)
-        xyz_df = scanned_data.copy()
-        xyz_df = xyz_df[['x', 'y', 'z']]
+
+        print('Filename: ', filename)
+        data_df = scanned_data.copy()
+        tmp_df = data_df[['x', 'y', 'z']]
+        if self.pca_stddev == None: # If the user didn't select denoise with PCA
+            xyz_df = tmp_df
+        else:
+            tmp_arr = tmp_df.to_numpy()
+            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
+            xyz_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
+            
         img_props, cluster_props, cluster_props_dict, xyzl = dbscan_cluster_and_group(xyz = xyz_df,
                                                                                       eps = self.epsilon,
                                                                                       min_samples = self.min_samples,
@@ -194,22 +215,28 @@ class DBSCAN_dataset(dstorm_dataset):
 
             fname = str(Path(filename).stem)
 
-    ##        plt_main(xyzl, filename, 'DBSCAN', self.output_path)
-
             now = datetime.now() # datetime object containing current date and time
-##            dt_string = now.strftime("%Y.%m.%d %H:%M:%S") # YY/mm/dd H:M:S
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
-
-##            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
             
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
+            img_path = os.path.join(self.csvs_path, '', img_props_name)
+            cluster_path = os.path.join(self.csvs_path, '', cluster_props_name)
 
-            img_path = os.path.join(self.output_path, img_props_name)
-            cluster_path = os.path.join(self.output_path, cluster_props_name)
-            img_props.to_excel(self.output_path + '/' + img_props_name)
-            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.output_path, dt_string)
+##            img_props.insert(loc = 1,
+##                             column = 'Number of Localisations Filtered by X-Precision',
+##                             value = [xp_dp])
+##            img_props.insert(loc = 1,
+##                             column = 'Number of Localisations Filtered by Photoncount',
+##                             value = [pc_dp])
+##            img_props.insert(loc = 1,
+##                             column = 'Original Number of Localisations',
+##                             value = [orig_loc_num])
+
+            img_props.to_excel(img_path)
+            cluster_props.to_excel(cluster_path)
+            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.htmls_path, dt_string, self.show_plts)
+            
         else:
             print('No Clusters were found in DBSCAN!')
         
@@ -217,7 +244,7 @@ class DBSCAN_dataset(dstorm_dataset):
 
 class HDBSCAN_dataset(dstorm_dataset):
 
-    def __init__(self, data, params, output_path):
+    def __init__(self, data, params, csvs_path, htmls_path, show_plts):
         
         self.alg = 'HDBSCAN'
         self.min_cluster_points = params[4]
@@ -225,32 +252,19 @@ class HDBSCAN_dataset(dstorm_dataset):
         self.min_samples = params[6]
         self.extracting_alg = params[7]
         self.alpha = params[8]
-        self.output_path = output_path
-        ### if the user didn't set a PCA standard deviation
-        if len(params) <= 9:
-            self.pca_stddev = 1.0
-        ### if the user did set a PCA standard deviation
-        else:
+##        self.output_path = output_path
+        self.csvs_path = csvs_path
+        self.htmls_path = htmls_path 
+        self.show_plts = show_plts
+
+        if len(params) <= 9: # if the user didn't set a PCA standard deviation
+            self.pca_stddev = None
+        else: # if the user did set a PCA standard deviation
             self.pca_stddev = params[9]
         self.res = []
         for i,val in enumerate(data):
             self.call_HDBSCAN(val['filename'], val['pointcloud'])
 
-    '''
-    def call_HDBSCAN(self, filename, scanned_data):
-        xyzl = hdbscan_cluster_and_group(
-            xyz = self.scanned_data,
-            min_cluster_points = self.min_cluster_points,
-            epsilon_threshold = self.epsilon_threshold,
-            min_samples = self.min_samples,
-            extracting_alg = self.extracting_alg,
-            alpha = self.alpha
-            )
-        df, number_of_localizations, number_of_locs_assigned_to_clusters = extract_AP(labeled_pts = xyzl, pca_stddev = self.pca_stddev)
-        new_fn = 'HDBSCAN_' + filename
-        #self.res.append({new_fn: [df, number_of_localizations, number_of_locs_assigned_to_clusters]})
-        self.res[new_fn] = [df, number_of_localizations, number_of_locs_assigned_to_clusters]
-    '''
 
 
     def call_HDBSCAN(self, filename, scanned_data):
@@ -260,8 +274,15 @@ class HDBSCAN_dataset(dstorm_dataset):
         @param scanned_data: the localisations to run HDBSCAN on
         """
 
-        xyz_df = scanned_data.copy()
-        xyz_df = xyz_df[['x', 'y', 'z']]
+        data_df = scanned_data.copy()
+        tmp_df = data_df[['x', 'y', 'z']]
+        if self.pca_stddev == None: # If the user didn't select denoise with PCA
+            xyz_df = tmp_df
+        else:
+            tmp_arr = tmp_df.to_numpy()
+            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
+            xyz_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
+        
         img_props, cluster_props, cluster_props_dict, xyzl = hdbscan_cluster_and_group(
             xyz = xyz_df,
             min_cluster_points = self.min_cluster_points,
@@ -275,22 +296,32 @@ class HDBSCAN_dataset(dstorm_dataset):
         if len(img_props.index) > 0:
             new_fn = 'HDBSCAN_' + str(self.epsilon_threshold)
             fname = str(Path(filename).stem)
-
-    ##        plt_main(xyzl, filename, 'HDBSCAN', self.output_path)
             
             now = datetime.now() # datetime object containing current date and time
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
-##            dt_string = now.strftime("%Y.%m.%d %H:%M:%S") # YY/mm/dd H:M:S
-
-##            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
 
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
-            img_path = os.path.join(self.output_path, img_props_name)
-            cluster_path = os.path.join(self.output_path, cluster_props_name)
-            img_props.to_excel(self.output_path + '/' + img_props_name)
-            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.output_path, dt_string)
+            img_path = os.path.join(self.csvs_path, img_props_name)
+            cluster_path = os.path.join(self.csvs_path, cluster_props_name)
+
+##            img_props.insert(loc = 1,
+##                             column = 'Number of Localisations Filtered by X-Precision',
+##                             value = [self.xp_dp])
+##            img_props.insert(loc = 1,
+##                             column = 'Number of Localisations Filtered by Photoncount',
+##                             value = [self.pc_dp])
+##            img_props.insert(loc = 1,
+##                             column = 'Original Number of Localisations',
+##                             value = [self.orig_loc_num])
+            
+##            img_props.to_excel(self.output_path + '/' + img_props_name)
+##            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
+            img_props.to_excel(img_path)
+            cluster_props.to_excel(cluster_path)
+            
+            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.htmls_path, dt_string, self.show_plts)
+            
         else:
             print('No clusters were found in HDBSCAN!')
         
@@ -299,21 +330,20 @@ class HDBSCAN_dataset(dstorm_dataset):
 
 class FOCAL_dataset(dstorm_dataset):
 
-    def __init__(self, data, params, output_path):
+    def __init__(self, data, params, csvs_path, htmls_path, show_plts):
         
         self.alg = 'FOCAL'
         self.sigma = params[4]
         self.minL = params[5]
         self.minC = params[6]
         self.minPC = params[7]
-        print('self.minPC = ', self.minPC)
-        print('self.sigma = ', self.sigma)
-        self.output_path = output_path
-        ### if the user didn't set a PCA standard deviation
-        if len(params) <= 8:
-            self.pca_stddev = 1.0
-        ### if the user did set a PCA standard deviation
-        else:
+        self.show_plts = show_plts
+##        self.output_path = output_path
+        self.csvs_path = csvs_path
+        self.htmls_path = htmls_path
+        if len(params) <= 8: # if the user didn't set a PCA standard deviation
+            self.pca_stddev = None
+        else: # if the user did set a PCA standard deviation
             self.pca_stddev = params[8]
         self.res = []
         for i,val in enumerate(data):
@@ -321,7 +351,16 @@ class FOCAL_dataset(dstorm_dataset):
 
     def call_FOCAL(self, filename, scanned_data):
 
-        xyz_df = scanned_data.copy()
+        data_df = scanned_data.copy()
+        tmp_df = data_df[['x', 'y', 'z']]
+        if self.pca_stddev == None: # If the user didn't select denoise with PCA
+            xyz_df = tmp_df
+        else:
+            tmp_arr = tmp_df.to_numpy()
+            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
+            denoised_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
+            xyz_df = pd.merge(denoised_df, data_df, on = ['x', 'y', 'z'], how = 'inner')
+        
         img_props, cluster_props, cluster_props_dict, xyzl = focal_cluster_and_group(
             xyz = xyz_df,
             sigma = self.sigma,
@@ -336,21 +375,68 @@ class FOCAL_dataset(dstorm_dataset):
             fname = str(Path(filename).stem)
             
             now = datetime.now() # datetime object containing current date and time
-##            dt_string = now.strftime("%Y.%m.%d %H{c}%M{c}%S").format(c = ':') # YY/mm/dd H:M:S
-##            dt_string = (str(now.year) + '.' + str(now.month) + '.' + str(now.day) + ' ' + str(now.hour) + ':' + str(now.minute) + ':' + str(now.second)) # YY/mm/dd H:M:S
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S") # YY/mm/dd H:M:S
-
-##            plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.output_path, dt_string)
             
             img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
             cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
-            img_path = os.path.join(self.output_path, img_props_name)
-            cluster_path = os.path.join(self.output_path, cluster_props_name)
+            img_path = os.path.join(self.csvs_path, img_props_name)
+            cluster_path = os.path.join(self.csvs_path, cluster_props_name)
+
+##            img_props.insert(loc = 1,
+##                             column = 'Number of Localisations Filtered by X-Precision',
+##                             value = [self.xp_dp])
+##            img_props.insert(loc = 1,
+##                             column = 'Number of Localisations Filtered by Photoncount',
+##                             value = [self.pc_dp])
+##            img_props.insert(loc = 1,
+##                             column = 'Original Number of Localisations',
+##                             value = [self.orig_loc_num])
         
-            img_props.to_excel(self.output_path + '/' + img_props_name)
-            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-            plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.output_path, dt_string)
+##            img_props.to_excel(self.output_path + '/' + img_props_name)
+##            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
+            img_props.to_excel(img_path)
+            cluster_props.to_excel(cluster_path)
+            
+            plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.htmls_path, dt_string, self.show_plts)
 
         else:
             print('No clusters were found in FOCAL!')
-        
+
+
+class Thread(QThread):
+    _signal = pyqtSignal(int)
+    def __init__(self):
+        super(Thread, self).__init__()
+
+    def __del__(self):
+        self.wait()
+
+    def run(self):
+        for i in range(100):
+            time.sleep(0.2)
+            self._signal.emit(i)
+
+class PBar(QWidget):
+    def __init__(self):
+        super(PBar, self).__init__()
+        self.setWindowTitle('QProgressBar')
+        self.pbar = QProgressBar(self)
+        self.pbar.setValue(0)
+        self.resize(300, 100)
+        self.vbox = QVBoxLayout(self)
+        self.vbox.addWidget(self.pbar)
+        self.setLayout(self.vbox)
+        self.pbFunc()
+        self.show()
+
+    def pbFunc(self):
+        self.thread = Thread()
+        self.thread._signal.connect(self.signal_accept)
+        self.thread.start()
+
+    def signal_accept(self, msg):
+        self.pbar.setValue(int(msg))
+        if self.pbar.value() == 99:
+            self.pbar.setValue(0)
+
+
