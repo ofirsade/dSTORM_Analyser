@@ -179,8 +179,36 @@ class MainWindow(QMainWindow):
         """
         Get all relevant data from file(s) input by the user
         """
-        htmls_path = os.path.join(self.output_dir, 'Plots')        
-        csvs_path = os.path.join(self.output_dir, 'CSVs')
+          
+        self.get_params()
+        if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
+            htmls_path, csvs_path = self.set_output_paths(True)
+            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+
+        else:
+            self.output_path = os.path.join(self.output_dir, "Results")
+            self.msg = QMessageBox()
+            self.msg.setText("The results of your scan(s) will be saved to the default directory")
+            self.msg.setInformativeText(str(self.output_path))
+            self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
+            self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Cancel
+            self.msg.show()
+            htmls_path, csvs_path = self.set_output_paths(False)
+            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+
+
+
+    def set_output_paths(self, b):
+        """
+        Set the output paths for CSVs and HTMLs
+        @param b: bool, True if user input an output path, else False.
+        """
+        if b:
+            htmls_path = os.path.join(self.output_dir, 'Plots')        
+            csvs_path = os.path.join(self.output_dir, 'CSVs')
+        else:
+            htmls_path = os.path.join(self.output_path, 'Plots')        
+            csvs_path = os.path.join(self.output_path, 'CSVs')
 
         if not os.path.exists(htmls_path):
           os.mkdir(htmls_path)
@@ -190,61 +218,12 @@ class MainWindow(QMainWindow):
             os.mkdir(csvs_path)
         else:
           print("Folder %s already exists" % csvs_path)
-          
-        self.get_params()
-        if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
-            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
-##            if self.dataset.completed == True:
-##                self.msg = QMessageBox()
-##                self.msg.setWindowTitle("Scan is Completed")
-##                self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
-##                self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
-##                self.msg.show()
-
-##        elif self.prep_data == 0:
-##            self.prep_data += 1
-##            self.msg = QMessageBox()
-##            self.msg.setWindowTitle("Warning")
-##            self.msg.setText("You have not selected an output path!")
-##            self.msg.setInformativeText("To run without selecting a path, click Ok and run again")
-##            self.msg.setIcon(QMessageBox.Warning)
-##            self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
-##            self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
-##            self.msg.show()
-        else:
-            output_path = os.path.join(self.output_dir, "Results")
-            self.msg = QMessageBox()
-            self.msg.setText("The results of your scan(s) will be saved to the default directory")
-            self.msg.setInformativeText(str(output_path))
-            self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
-            self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Cancel
-            self.msg.show()
-            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
-##            output_path = os.path.join(self.output_dir, "Results")
-##            self.dataset = dstorm_dataset(self.path, output_path, self.selected_files, self.algs, self.config, self.pbar)
-####            if self.dataset.completed == True:
-##                self.msg = QMessageBox()
-##                self.msg.setWindowTitle("Scan is Completed")
-##                self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
-##                self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
-##                self.msg.show()
-##        if dataset.complete == True:
-##            self.initialise_window()
-##
-##    def initialise_window(self):
-##        """
-##        After a run of the algorithms has finished, reset the window
-##        """
-##        self.path = []
-##        self.checked_cbs = []
-##        self.open_plots = False
-##        self.output_dir = os.path.abspath(os.path.dirname(__file__))
-##        scriptDir = os.path.dirname(os.path.realpath(__file__))
+        return htmls_path, csvs_path
 
 
     def get_params(self):
         """
-        Stores all the updated user-defined params
+        Stores all the updated user-defined params for clustering algorithms
         """
         for alg in self.checked_cbs:
             if alg == 'DBSCAN':
@@ -765,4 +744,5 @@ if __name__ == '__main__':
     win.show()
 
     app.exec_() #Kickstart the Qt event loop
+
 
