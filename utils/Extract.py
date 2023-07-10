@@ -1,21 +1,83 @@
 import pandas as pd
 import numpy as np
 from collections import Counter
-from sklearn.cluster import DBSCAN
 from sklearn import metrics
-import plotly
 import math
-import plotly.express as px
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
 import scipy
-import hdbscan
 import json
 import scipy
 from scipy.spatial import distance_matrix, ConvexHull
 import os
 import statistics
 import functools
+import ast
+from sklearn.decomposition import PCA
+
+
+def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
+    try:
+        points_mat = np.matrix(np_array)
+        transposed_mat = points_mat.T
+        dimensions_mean = [sum(column) / len(column) for column in transposed_mat.tolist()]
+
+        normed_transposed_mat = np.matrix(np.stack([[a - dimensions_mean[i] for a in column] for i, column in enumerate(transposed_mat.tolist())]))
+        covariance_matrix = np.cov(normed_transposed_mat)
+
+        ### eigen vectors should be orthogonal
+        eigen_values, eigen_vectors = np.linalg.eig(covariance_matrix)
+        eigen_values = [(e, i) for i, e in enumerate(eigen_values)]
+
+        ### sort eigen values descending, and create a feature vector accordingly
+        eigen_values.sort(reverse = True, key = lambda a:a[0])
+
+        ### returns a transposed matrix of eigen vectors!
+        feature_vec = np.stack([eigen_vectors[:,i] for e, i in eigen_values])
+
+        transformed_data = feature_vec * normed_transposed_mat
+
+        ### sanity check
+        if (int((transformed_data[0]).mean()) != 0):
+            raise BaseException("Some error has occurred during the PCA process")
+
+        ### actual noise reduction, look at PC1 which has the highest explained variance,
+        ### filter out all points which are larger than stddev_factor * std
+        pc_one = transformed_data.tolist()[0]
+        std = transformed_data[0].std()
+        noise = [idx for idx,val in enumerate(pc_one) if np.abs(val) >= std * stddev_factor]
+##        noise_data = []
+
+        if (len(noise) > 0):
+            print("Noise reduction: %d points dropped due to being %f times higher than std (second PC)" % (len(noise), stddev_factor))
+
+        ### drop noise
+##        noise_data = np.take(transformed_data, noise, axis = 1)
+        transformed_data = np.delete(transformed_data, noise, axis = 1)
+
+        if (len(transformed_data) > 2):
+            pc_two = transformed_data.tolist()[1]
+            std = transformed_data[1].std()
+            noise = [idx  for idx,val in enumerate(pc_two) if np.abs(val) >= std * stddev_factor]
+
+            if (len(noise) > 0):
+                print("Noise reduction: %d points dropped due to being %f times higher than std" % (len(noise), stddev_factor))
+##                noise_reduce = True
+
+            ### drop additional noise
+##            noise_data.append(transformed_data[noise])
+            transformed_data = np.delete(transformed_data, noise, 1)
+
+        #restore mean in reduced original data
+        original_data_reduced = np.matrix(feature_vec).I * transformed_data
+        restored = np.stack([[a + dimensions_mean[i] for a in column] for i, column in enumerate(original_data_reduced.tolist())])
+        
+        return restored.T#, noise_reduce)#, noise_data
+    
+    except Exception as e:
+        print("Error ocurred during PCA noise reduction!")
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(e, exc_type, fname, exc_tb.tb_lineno)
+        print(e)
 
 
 # ************************************************************** Polygon ************************************************************** #
@@ -136,27 +198,6 @@ def calc_polygon_radius(clusters):
     median_radius = statistics.median(radii)
 
     return mean_radius, median_radius, radii
-
-##
-##def calc_cv_size_density(clusters):
-##    """
-##    Calculates the mean and median densities of the xy convex hull containing each cluster.
-##    """
-##    densities_lst = []
-##    sizes_lst = []
-##    size_dens_3d_dict = {}
-##    for cluster in clusters.values():
-##        points = np.array([item[:3] for item in cluster])
-##        hull = ConvexHull(points)
-##        temp_vol = hull.volume
-##        n = len(points)
-##        temp_density = n / temp_vol
-##        densities_lst.append(temp_density)
-##        
-##    mean_dens = statistics.mean(densities_lst)
-##    median_dens = statistics.median(densities_lst)
-##
-##    return mean_dens, median_dens, densities_lst
 
 
 def calc_all(clusters):
@@ -389,6 +430,4 @@ def extract_AP(clusters):
 ##    print(clstr_props_df)
     
     return img_props_df, clstr_props_df, cluster_props_dict
-    
-    
     
