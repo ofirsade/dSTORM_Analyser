@@ -6,6 +6,8 @@ import hdbscan
 from sklearn.cluster import DBSCAN
 from scipy.spatial import distance_matrix
 from collections import Counter
+
+##from utils.focal import FOCAL
 from utils.Adjusted_FOCAL import FOCAL
 from utils.Extract import extract_AP
 
@@ -149,7 +151,7 @@ def general_cluster_and_group(xyz, labels, fname):
                          column = 'Number of Clusters',
                          value = [cluster_num])
         img_props.insert(loc = 2,
-                         column = 'Total Number of Localisations',
+                         column = 'Total Number of Analysed Localisations',
                          value = [number_of_locs])
         img_props.insert(loc = 3,
                          column = 'Number of Localisations Assigned to Clusters',
