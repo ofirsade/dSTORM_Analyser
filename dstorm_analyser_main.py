@@ -51,7 +51,8 @@ class MainWindow(QMainWindow):
         self.path = []
         self.checked_cbs = []
         self.open_plots = False
-        self.output_dir = os.path.abspath(os.path.dirname(__file__))
+##        self.output_dir = os.path.abspath(os.path.dirname(__file__))
+        self.output_dir_set = False
         scriptDir = os.path.dirname(os.path.realpath(__file__))
 ##        self.basedir = os.path.dirname(__file__)
         
@@ -118,7 +119,7 @@ class MainWindow(QMainWindow):
 ##        font = QtGui.QFont('Arial', 15, QtGui.QFont.Bold)
 ##        self.setFont(font)
 
-        self.gf = False
+##        self.gf = False ## What is self.gf?
         
         self.btn1 = QPushButton(self)
         self.btn1.setText('Upload Input Files')
@@ -181,22 +182,38 @@ class MainWindow(QMainWindow):
         """
           
         self.get_params()
-        if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
+##        if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
+        if self.output_dir_set:
             htmls_path, csvs_path = self.set_output_paths(True)
             dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+##            self.thread = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+##            self.thread.progress.connect(self.update_progress())
+            self.msg = QMessageBox()
+            self.msg.setText("The results of your scan(s) will be saved to the selected directory")
+            self.msg.setInformativeText(str(self.output_dir))
+            self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
+            self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Ok
+            self.msg.show()
+            
 
         else:
-            self.output_path = os.path.join(self.output_dir, "Results")
+            self.output_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "Results")
+            htmls_path, csvs_path = self.set_output_paths(False)
+            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+##            self.thread = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+##            self.thread.progress.connect(self.update_progress())
             self.msg = QMessageBox()
             self.msg.setText("The results of your scan(s) will be saved to the default directory")
             self.msg.setInformativeText(str(self.output_path))
             self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
             self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Cancel
             self.msg.show()
-            htmls_path, csvs_path = self.set_output_paths(False)
-            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
 
 
+##    def update_progress(self, progress):
+##        progress_dict = progress.format_dict
+##        percentage = (progress_dict['n'] + 1) / progress_dict['total'] * 100
+##        self.progressBar.setValue(percentage)
 
     def set_output_paths(self, b):
         """
@@ -264,6 +281,7 @@ class MainWindow(QMainWindow):
                 if self.p3_upca.isChecked():
                     self.p3_stdev_num = QLineEdit('1.0', self)
                     self.config['FOCAL'].append(float(self.p3_stdev_num.text()))
+        
                 
         
     def prepare_scan(self):
@@ -280,10 +298,15 @@ class MainWindow(QMainWindow):
         
 
         # Creating progress bar
-        self.pbar = QProgressBar(self)
-        self.pbar.setValue(0)
-        self.pbar.setGeometry(30, 40, 200, 25)
-        self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
+##        self.pbar = QProgressBar(self)
+##        self.pbar.setValue(0)
+##        self.pbar.setGeometry(30, 40, 200, 25)
+##        self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
+        self.pbar = QStatusBar()
+##        self.setStatusBar(self.pbar)
+##        self.pbar.setGeometry(30, 40, 200, 25)
+##        self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
+        
 
 ##    def onStateChanged(self):
 ##
@@ -364,6 +387,7 @@ class MainWindow(QMainWindow):
             if cb.isChecked() == True:
                 if 'DBSCAN' not in self.checked_cbs:
                     self.checked_cbs.append('DBSCAN')
+                    print(self.checked_cbs)
                 self.rn1 = 7 # Number of rows for widget1
                 self.p1_photoncount = QLineEdit('1000', self)
                 self.p1_xprecision = QLineEdit('100', self)
@@ -413,6 +437,7 @@ class MainWindow(QMainWindow):
             if cb.isChecked() == True:
                 if 'HDBSCAN' not in self.checked_cbs:
                     self.checked_cbs.append('HDBSCAN')
+                    print(self.checked_cbs)
                 self.rn2 = 9
                 self.p2_photoncount = QLineEdit('1000', self)
                 self.p2_xprecision = QLineEdit('100', self)
@@ -459,6 +484,7 @@ class MainWindow(QMainWindow):
 ##                del self.config['HDBSCAN']
                 if 'HDBSCAN' in self.checked_cbs:
                     self.checked_cbs.remove('HDBSCAN')
+                    print(self.checked_cbs)
 
         if cb.text() == 'FOCAL':
             if cb.isChecked() == True:
@@ -473,7 +499,7 @@ class MainWindow(QMainWindow):
                 self.p3_sigma = QLineEdit('55', self)
                 self.p3_minL = QLineEdit('1', self)
                 self.p3_minC = QLineEdit('25', self)
-                self.p3_minPC = QLineEdit('2000', self)
+                self.p3_minPC = QLineEdit('1500', self)
                 self.p3_upca = QCheckBox('')
                 self.p3_upca.setChecked(False)
                 self.p3_upca.stateChanged.connect(self.onStateChangedFB)
@@ -677,6 +703,7 @@ class MainWindow(QMainWindow):
             caption = 'Select a Folder'
             )
         self.outdir = QLabel(str(self.output_dir))
+        self.output_dir_set = True
         self.overall_layout.addWidget(self.outdir, 6, 1, 1, 2)
 
     def checked_show_plots(self):
@@ -720,14 +747,6 @@ class MainWindow(QMainWindow):
             self.db.setCheckable(False)
             self.hb.setCheckable(False)
             self.fb.setCheckable(False)
-        
-
-    def use_PCA(self, cb):
-
-        if cb.isChecked() == True: # Use PCA Noise Reduction (default --> no change)
-            pass
-        else: # Do not use PCA Noise Reduction
-            pass
     
         
 
