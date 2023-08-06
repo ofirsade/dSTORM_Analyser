@@ -20,6 +20,17 @@ import time
 import sys
 
 
+##class ThreadClass(QThread):
+##    progress = pyqtSignal(object)
+##
+##    def __init__(self, parent = None):
+##        super(MainWindow, self).__init__(parent)
+##
+##    def run(self):
+##        self.ds = dstorm_dataset()
+##        
+    
+
 
 class dstorm_dataset(data.Dataset):
     
@@ -72,6 +83,7 @@ class dstorm_dataset(data.Dataset):
                 result = pool.imap_unordered(self.parse_row, fileslist) # Load files
                 for r in result:
                     df_rows.append(r)
+                    
 ##                    pb = PBar()
 ##                    pb.show()
                     
@@ -354,7 +366,8 @@ class FOCAL_dataset(dstorm_dataset):
         data_df = scanned_data.copy()
         tmp_df = data_df[['x', 'y', 'z']]
         if self.pca_stddev == None: # If the user didn't select denoise with PCA
-            xyz_df = tmp_df
+##            xyz_df = tmp_df
+            xyz_df = data_df[['x', 'y', 'z', 'photon-count']]
         else:
             tmp_arr = tmp_df.to_numpy()
             denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
