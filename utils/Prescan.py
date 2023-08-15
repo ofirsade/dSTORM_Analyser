@@ -46,7 +46,7 @@ class dstorm_dataset(data.Dataset):
             pbar - progress bar
         '''
         fileslist = []
-        self.input_path = input_path[1][0]
+        self.input_path = input_path[1]
         self.pc_th = 0.0
         self.px_th = 1000.0
         self.clust_res = {}
@@ -59,6 +59,7 @@ class dstorm_dataset(data.Dataset):
                 self.px_th = (config.get(str(alg[0])))[1] # Set the maximum x-precision threshold
 
         if input_path[0] == 'files':
+            self.input_path = self.input_path[0]
             if isinstance(self.input_path, list):
                 for full_path in self.input_path:
                     for sf in selected_files:
