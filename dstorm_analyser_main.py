@@ -254,6 +254,7 @@ class MainWindow(QMainWindow):
                 if self.p1_upca.isChecked():
                     self.p1_stdev_num = QLineEdit('1.0', self)
                     self.config['DBSCAN'].append(float(self.p1_stdev_num.text()))
+                    self.p1_stdev_num.setToolTip('PCA noise reduction standard deviations')
 
             elif alg == 'HDBSCAN':
                 self.config['HDBSCAN'] = [int(self.p2_photoncount.text()),
@@ -268,6 +269,7 @@ class MainWindow(QMainWindow):
                 if self.p2_upca.isChecked():
                     self.p2_stdev_num = QLineEdit('1.0', self)
                     self.config['HDBSCAN'].append(float(self.p2_stdev_num.text()))
+                    self.p2_stdev_num.setToolTip('PCA noise reduction standard deviations')
 
             elif alg == 'FOCAL':
                 self.config['FOCAL'] = [int(self.p3_photoncount.text()),
@@ -281,6 +283,7 @@ class MainWindow(QMainWindow):
                 if self.p3_upca.isChecked():
                     self.p3_stdev_num = QLineEdit('1.0', self)
                     self.config['FOCAL'].append(float(self.p3_stdev_num.text()))
+                    self.p3_stdev_num.setToolTip('PCA noise reduction standard deviations')
         
                 
         
@@ -396,9 +399,18 @@ class MainWindow(QMainWindow):
 ##                self.p1_min_pts = QLineEdit('22', self)
                 self.p1_epsilon = QLineEdit('70', self)
                 self.p1_min_samples = QLineEdit('22', self)
+                
                 self.p1_upca = QCheckBox('')
                 self.p1_upca.setChecked(False)
                 self.p1_upca.stateChanged.connect(self.onStateChangedDB)
+
+                # Set tips to appear on mouse hover
+                self.p1_photoncount.setToolTip('Minimum Photon Count Value to Analyse')
+                self.p1_xprecision.setToolTip('Maximum X-Precision Value to Analyse')
+                self.p1_density_threshold2.setToolTip('Minimum 2D Density to Consider a Cluster')
+                self.p1_density_threshold3.setToolTip('Minimum 3D Density to Consider a Cluster')
+                self.p1_min_samples.setToolTip('Minimum Number of Points in Epsilon Radius to Consider a Cluster')
+                self.p1_epsilon.setToolTip('DBSCAN Search Radius')
                 
                 self.p1 = QWidget()
                 self.p1_layout = QFormLayout()
@@ -451,6 +463,23 @@ class MainWindow(QMainWindow):
                 self.p2_upca = QCheckBox('')
                 self.p2_upca.setChecked(False)
                 self.p2_upca.stateChanged.connect(self.onStateChangedHB)
+
+                # Set tips to appear on mouse hover
+                self.p2_photoncount.setToolTip('Minimum Photon Count Value to Analyse')
+                self.p2_xprecision.setToolTip('Maximum X-Precision Value to Analyse')
+                self.p2_density_threshold2.setToolTip('Minimum 2D density to consider a cluster')
+                self.p2_density_threshold3.setToolTip('Minimum 3D density to consider a cluster')
+                self.p2_min_cluster_points.setToolTip('The smallest size grouping to consider a cluster')
+                self.p2_epsilon.setToolTip('HDBSCAN minimum cluster radius')
+                self.p2_min_samples.setToolTip('A measure of how conservative the clustering is.\n\
+                                                The larger the value,\n\
+                                                more points will be declared as noise,\n\
+                                                and clusters will be restricted to progressively denser areas.')
+                self.p2_extracting_alg.setToolTip('Determines how HDBSCAN selects flat clusters from the cluster tree hierarchy\n\
+                                                    Options are: eom or leaf')
+                self.p2_selection_alpha.setToolTip('I suggest not to change this parameter!\n\
+                                                    Increasing alpha will make the clustering more conservative,\n\
+                                                    but on a much tighter scale')
                 
                 self.p2 = QWidget()
                 self.p2_layout = QFormLayout()
@@ -510,7 +539,15 @@ class MainWindow(QMainWindow):
 ##                                        int(self.p3_sigma.text()),
 ##                                        int(self.p3_minL.text()),
 ##                                        int(self.p3_minC.text()),
-##                                        int(self.p3_minPC.text())]              
+##                                        int(self.p3_minPC.text())]
+
+                self.p3_photoncount.setToolTip('Minimum Photon Count Value to Analyse')
+                self.p3_xprecision.setToolTip('Maximum X-Precision Value to Analyse')
+                self.p3_density_threshold2.setToolTip('Minimum 2D density to consider a cluster')
+                self.p3_density_threshold3.setToolTip('Minimum 3D density to consider a cluster')
+                self.p3_sigma.setToolTip('Voxel size')
+                self.p3_minL.setToolTip('Minimum threshold for voxel neighbour score')
+                self.p3_minC.setToolTip('Minimum threshold for number of voxels per cluster')
 
                 self.p3 = QWidget()
                 self.p3_layout = QFormLayout()
@@ -688,7 +725,6 @@ class MainWindow(QMainWindow):
         if os.path.isdir(self.dr):
             for filename in os.listdir(self.dr):
                 if filename.endswith((".csv", ".xlsx")):
-                    print(filename)
                     filenames.append(filename)
         self.path = ['dir', self.dr]
         self.fileslist = filenames
@@ -763,5 +799,3 @@ if __name__ == '__main__':
     win.show()
 
     app.exec_() #Kickstart the Qt event loop
-
-
