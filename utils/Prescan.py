@@ -30,17 +30,18 @@ import sys
 ##        self.ds = dstorm_dataset()
 ##        
     
-
-
 class dstorm_dataset(data.Dataset):
     
-    def __init__(self, input_path, csvs_path, htmls_path, selected_files, algs, config, open_plots, pbar, workers = 8):
+    def __init__(self, input_path, csvs_path, htmls_path, selected_files, algs, config,
+                 gen_files, gen_plots, open_plots, pbar, workers = 8):
         '''
         @params:
             input_path - str, path to file/files/directory
             output_path - str, path to desired output directory
             algs - list of bools, [DBSCAN, HDBSCAN, FOCAL]
             config - list, configuration parameters for each algorithm set to TRUE in algs
+            gen_files - bool, if True: generate and save spreadsheets with clustering information, else don't
+            gen_plots - bool, if True: generate and save htmls of clustering plots, else don't
             open_plots - bool, if True: open plots when ready, elif False: only save the plots to output directory
             pw - PlotWindow, empty window to show results
             pbar - progress bar
@@ -106,14 +107,14 @@ class dstorm_dataset(data.Dataset):
             if alg[1] == True:
                 params = config.get(str(alg[0]))
                 if alg[0] == 'DBSCAN':
-                    db = DBSCAN_dataset(self.data, params, csvs_path, htmls_path, open_plots)
-                    self.clust_res[alg[0]] = db.res
+                    db = DBSCAN_dataset(self.data, params, csvs_path, htmls_path, gen_files, gen_plots, open_plots)
+                    self.clust_res[alg[0]] = [db.img_props, db.cluster_props]
                 elif alg[0] == 'HDBSCAN':
-                    hdb = HDBSCAN_dataset(self.data, params, csvs_path, htmls_path, open_plots)
-                    self.clust_res[alg[0]] = hdb.res
+                    hdb = HDBSCAN_dataset(self.data, params, csvs_path, htmls_path, gen_files, gen_plots, open_plots)
+                    self.clust_res[alg[0]] = [hdb.img_props, hdb.cluster_props]
                 elif alg[0] == 'FOCAL':
-                    foc = FOCAL_dataset(self.data, params, csvs_path, htmls_path, open_plots)
-                    self.clust_res[alg[0]] = foc.res
+                    foc = FOCAL_dataset(self.data, params, csvs_path, htmls_path, gen_files, gen_plots, open_plots)
+                    self.clust_res[alg[0]] = [foc.img_props, foc.cluster_props]
 ##                pbar.setValue(i)
         self.complete = True
 
@@ -135,14 +136,17 @@ class dstorm_dataset(data.Dataset):
         @ret df_row: dict, with one dataframe value and one int value
         """
         self.orig_loc_num = len(pointcloud.index) # Original number of points before any filteration
+        print('\nInitial number of localisations: ', self.orig_loc_num, '\n')
+##        z_pointcloud = pointcloud.loc[pointcloud['z-step'] == 0]
+##        print(z_pointcloud)
         
         tmp_pointcloud = pointcloud.loc[pointcloud['photon-count'] >= self.pc_th]
         pc_dp = self.orig_loc_num - len(tmp_pointcloud) # Number of points dropped by photoncount filter
-        print("Dropping " + str(pc_dp) + " localisations due to photon intensity filter (%f)" % self.pc_th)
+        print("\nDropping " + str(pc_dp) + " localisations due to photon intensity filter (%f)" % self.pc_th + '\n')
         
         fin_pointcloud = tmp_pointcloud.loc[tmp_pointcloud['precisionx'] <= self.px_th]
         xp_dp = len(tmp_pointcloud) - len(fin_pointcloud) # Number of points dropped by x-precision filter
-        print("Dropping " + str(xp_dp) + " localisations due to x-precision filter (%f)" % self.px_th)
+        print("\nDropping " + str(xp_dp) + " localisations due to x-precision filter (%f)" % self.px_th + '\n')
 
         pc = fin_pointcloud[['x', 'y', 'z', 'photon-count']]
         
@@ -178,7 +182,7 @@ class dstorm_dataset(data.Dataset):
 
 class DBSCAN_dataset(dstorm_dataset):
 
-    def __init__(self, data, params, csvs_path, htmls_path, show_plts):
+    def __init__(self, data, params, csvs_path, htmls_path, gen_files, gen_plots, show_plts):
         '''
         Creates an object of 3D localisations, each with a cluster label given by DBSCAN
         @param data: 
@@ -186,17 +190,26 @@ class DBSCAN_dataset(dstorm_dataset):
         '''
 
         self.alg = 'DBSCAN'
+        self.d2_th = params[2]
+        self.d3_th = params[3]
         self.epsilon = params[4]
         self.min_samples = params[5]
         self.csvs_path = csvs_path
         self.htmls_path = htmls_path
+        self.gen_files = gen_files
+        self.gen_plts = gen_plots
         self.show_plts = show_plts
+        self.img_props = pd.DataFrame()
+        self.cluster_props = pd.DataFrame()
         if len(params) <= 6: # if the user didn't set a PCA standard deviation
             self.pca_stddev = None
         else: # if the user did set a PCA standard deviation
             self.pca_stddev = params[6]
         self.res = {}
-        for i,val in enumerate(data):            
+        for i,val in enumerate(data):
+##            tmp_df = val['pointcloud']
+##            tmp_df.sort_values(by=['x', 'y'], inplace = True)
+            print('\n', val['pointcloud'], '\n')
             self.call_DBSCAN(val['filename'], val['pointcloud'])
         
 
@@ -210,18 +223,26 @@ class DBSCAN_dataset(dstorm_dataset):
 
         print('Filename: ', filename)
         data_df = scanned_data.copy()
+        print('\nData DF:\n', data_df)
         tmp_df = data_df[['x', 'y', 'z']]
-        if self.pca_stddev == None: # If the user didn't select denoise with PCA
-            xyz_df = tmp_df
-        else:
-            tmp_arr = tmp_df.to_numpy()
-            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
-            xyz_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
-            
+##        if self.pca_stddev == None: # If the user didn't select denoise with PCA
+##            xyz_df = tmp_df
+##        else:
+##            tmp_arr = tmp_df.to_numpy()
+##            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
+##            xyz_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
+        xyz_df = tmp_df
+##        print('\nXYZ DF:\n', xyz_df)
         img_props, cluster_props, cluster_props_dict, xyzl = dbscan_cluster_and_group(xyz = xyz_df,
                                                                                       eps = self.epsilon,
                                                                                       min_samples = self.min_samples,
-                                                                                      fname = filename)
+                                                                                      fname = filename,
+                                                                                      pca_stddev = self.pca_stddev,
+                                                                                      d2_th = self.d2_th,
+                                                                                      d3_th = self.d3_th)
+        
+##        print('\nXYZL DF:\n', xyzl)
+        
         if len(img_props.index) > 0:
             
             new_fn = 'DBSCAN_' + str(self.min_samples) + '_' + str(self.epsilon)
@@ -231,10 +252,10 @@ class DBSCAN_dataset(dstorm_dataset):
             now = datetime.now() # datetime object containing current date and time
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
             
-            img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
-            cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
-            img_path = os.path.join(self.csvs_path, '', img_props_name)
-            cluster_path = os.path.join(self.csvs_path, '', cluster_props_name)
+##            img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
+##            cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
+##            img_path = os.path.join(self.csvs_path, '', img_props_name)
+##            cluster_path = os.path.join(self.csvs_path, '', cluster_props_name)
 
 ##            img_props.insert(loc = 1,
 ##                             column = 'Number of Localisations Filtered by X-Precision',
@@ -246,9 +267,17 @@ class DBSCAN_dataset(dstorm_dataset):
 ##                             column = 'Original Number of Localisations',
 ##                             value = [orig_loc_num])
 
-            img_props.to_excel(img_path)
-            cluster_props.to_excel(cluster_path)
-            plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.htmls_path, dt_string, self.show_plts)
+            img_props['PCA'] = [self.pca_stddev]
+##            if self.gen_files:
+##                img_props['PCA'] = [self.pca_stddev]
+##                img_props.to_excel(img_path)
+##                cluster_props.to_excel(cluster_path)
+
+            if self.gen_plts:
+                plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.htmls_path, dt_string, self.show_plts)
+
+            self.img_props = pd.concat([self.img_props, img_props])
+            self.cluster_props = pd.concat([self.cluster_props, cluster_props])
             
         else:
             print('No Clusters were found in DBSCAN!')
@@ -257,9 +286,11 @@ class DBSCAN_dataset(dstorm_dataset):
 
 class HDBSCAN_dataset(dstorm_dataset):
 
-    def __init__(self, data, params, csvs_path, htmls_path, show_plts):
+    def __init__(self, data, params, csvs_path, htmls_path, gen_files, gen_plots, show_plts):
         
         self.alg = 'HDBSCAN'
+        self.d2_th = params[2]
+        self.d3_th = params[3]
         self.min_cluster_points = params[4]
         self.epsilon_threshold = params[5]
         self.min_samples = params[6]
@@ -267,8 +298,12 @@ class HDBSCAN_dataset(dstorm_dataset):
         self.alpha = params[8]
 ##        self.output_path = output_path
         self.csvs_path = csvs_path
-        self.htmls_path = htmls_path 
+        self.htmls_path = htmls_path
+        self.gen_files = gen_files
+        self.gen_plts = gen_plots
         self.show_plts = show_plts
+        self.img_props = pd.DataFrame()
+        self.cluster_props = pd.DataFrame()
 
         if len(params) <= 9: # if the user didn't set a PCA standard deviation
             self.pca_stddev = None
@@ -276,6 +311,7 @@ class HDBSCAN_dataset(dstorm_dataset):
             self.pca_stddev = params[9]
         self.res = []
         for i,val in enumerate(data):
+            print('\n', val['pointcloud'], '\n')
             self.call_HDBSCAN(val['filename'], val['pointcloud'])
 
 
@@ -289,12 +325,13 @@ class HDBSCAN_dataset(dstorm_dataset):
 
         data_df = scanned_data.copy()
         tmp_df = data_df[['x', 'y', 'z']]
-        if self.pca_stddev == None: # If the user didn't select denoise with PCA
-            xyz_df = tmp_df
-        else:
-            tmp_arr = tmp_df.to_numpy()
-            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
-            xyz_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
+##        if self.pca_stddev == None: # If the user didn't select denoise with PCA
+##            xyz_df = tmp_df
+##        else:
+##            tmp_arr = tmp_df.to_numpy()
+##            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
+##            xyz_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
+        xyz_df = tmp_df
         
         img_props, cluster_props, cluster_props_dict, xyzl = hdbscan_cluster_and_group(
             xyz = xyz_df,
@@ -303,7 +340,10 @@ class HDBSCAN_dataset(dstorm_dataset):
             min_samples = self.min_samples,
             extracting_alg = self.extracting_alg,
             alpha = self.alpha,
-            fname = filename
+            fname = filename,
+            pca_stddev = self.pca_stddev,
+            d2_th = self.d2_th,
+            d3_th = self.d3_th
             )
 
         if len(img_props.index) > 0:
@@ -313,10 +353,10 @@ class HDBSCAN_dataset(dstorm_dataset):
             now = datetime.now() # datetime object containing current date and time
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
 
-            img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
-            cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
-            img_path = os.path.join(self.csvs_path, img_props_name)
-            cluster_path = os.path.join(self.csvs_path, cluster_props_name)
+##            img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
+##            cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
+##            img_path = os.path.join(self.csvs_path, img_props_name)
+##            cluster_path = os.path.join(self.csvs_path, cluster_props_name)
 
 ##            img_props.insert(loc = 1,
 ##                             column = 'Number of Localisations Filtered by X-Precision',
@@ -330,10 +370,18 @@ class HDBSCAN_dataset(dstorm_dataset):
             
 ##            img_props.to_excel(self.output_path + '/' + img_props_name)
 ##            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-            img_props.to_excel(img_path)
-            cluster_props.to_excel(cluster_path)
-            
-            plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.htmls_path, dt_string, self.show_plts)
+
+            img_props['PCA'] = [self.pca_stddev]
+##            if self.gen_files:
+##                img_props['PCA'] = [self.pca_stddev]
+##                img_props.to_excel(img_path)
+##                cluster_props.to_excel(cluster_path)
+
+            self.img_props = pd.concat([self.img_props, img_props])
+            self.cluster_props = pd.concat([self.cluster_props, cluster_props])
+
+            if self.gen_plts:
+                plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.htmls_path, dt_string, self.show_plts)
             
         else:
             print('No clusters were found in HDBSCAN!')
@@ -343,37 +391,46 @@ class HDBSCAN_dataset(dstorm_dataset):
 
 class FOCAL_dataset(dstorm_dataset):
 
-    def __init__(self, data, params, csvs_path, htmls_path, show_plts):
+    def __init__(self, data, params, csvs_path, htmls_path, gen_files, gen_plots, show_plts):
         
         self.alg = 'FOCAL'
+        self.d2_th = params[2]
+        self.d3_th = params[3]
         self.sigma = params[4]
         self.minL = params[5]
         self.minC = params[6]
         self.minPC = params[7]
+        self.gen_files = gen_files
+        self.gen_plts = gen_plots
         self.show_plts = show_plts
 ##        self.output_path = output_path
         self.csvs_path = csvs_path
         self.htmls_path = htmls_path
+        self.img_props = pd.DataFrame()
+        self.cluster_props = pd.DataFrame()
+
         if len(params) <= 8: # if the user didn't set a PCA standard deviation
             self.pca_stddev = None
         else: # if the user did set a PCA standard deviation
             self.pca_stddev = params[8]
         self.res = []
         for i,val in enumerate(data):
+            print('\n', val['pointcloud'], '\n')
             self.call_FOCAL(val['filename'], val['pointcloud'])
 
     def call_FOCAL(self, filename, scanned_data):
 
         data_df = scanned_data.copy()
         tmp_df = data_df[['x', 'y', 'z']]
-        if self.pca_stddev == None: # If the user didn't select denoise with PCA
-##            xyz_df = tmp_df
-            xyz_df = data_df[['x', 'y', 'z', 'photon-count']]
-        else:
-            tmp_arr = tmp_df.to_numpy()
-            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
-            denoised_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
-            xyz_df = pd.merge(denoised_df, data_df, on = ['x', 'y', 'z'], how = 'inner')
+##        if self.pca_stddev == None: # If the user didn't select denoise with PCA
+####            xyz_df = tmp_df
+##            xyz_df = data_df[['x', 'y', 'z', 'photon-count']]
+##        else:
+##            tmp_arr = tmp_df.to_numpy()
+##            denoised_xyz_arr = pca_outliers_and_axes(tmp_arr, self.pca_stddev) # Denoise with PCA
+##            denoised_df = pd.DataFrame(denoised_xyz_arr, columns = ['x', 'y', 'z'])
+##            xyz_df = pd.merge(denoised_df, data_df, on = ['x', 'y', 'z'], how = 'inner')
+        xyz_df = data_df[['x', 'y', 'z', 'photon-count']]
         
         img_props, cluster_props, cluster_props_dict, xyzl = focal_cluster_and_group(
             xyz = xyz_df,
@@ -381,7 +438,10 @@ class FOCAL_dataset(dstorm_dataset):
             minL = self.minL,
             minC = self.minC,
             minPC = self.minPC,
-            fname = filename
+            fname = filename,
+            pca_stddev = self.pca_stddev,
+            d2_th = self.d2_th,
+            d3_th = self.d3_th
             )
 
         if len(img_props.index) > 0:
@@ -390,11 +450,12 @@ class FOCAL_dataset(dstorm_dataset):
             
             now = datetime.now() # datetime object containing current date and time
             dt_string = now.strftime("%Y.%m.%d %H_%M_%S") # YY/mm/dd H:M:S
-            
-            img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
-            cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
-            img_path = os.path.join(self.csvs_path, img_props_name)
-            cluster_path = os.path.join(self.csvs_path, cluster_props_name)
+##            
+##            self.img_props_name = dt_string + ' ' + fname + ' Image ' + new_fn + '.xlsx'
+##            self.cluster_props_name = dt_string + ' ' + fname + ' Cluster ' + new_fn + '.xlsx'
+##            
+##            img_path = os.path.join(self.csvs_path, img_props_name)
+##            cluster_path = os.path.join(self.csvs_path, cluster_props_name)
 
 ##            img_props.insert(loc = 1,
 ##                             column = 'Number of Localisations Filtered by X-Precision',
@@ -408,10 +469,17 @@ class FOCAL_dataset(dstorm_dataset):
         
 ##            img_props.to_excel(self.output_path + '/' + img_props_name)
 ##            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
-            img_props.to_excel(img_path)
-            cluster_props.to_excel(cluster_path)
+            img_props['PCA'] = [self.pca_stddev]
+##            if self.gen_files:
+##                img_props['PCA'] = [self.pca_stddev]
+##                img_props.to_excel(img_path)
+##                cluster_props.to_excel(cluster_path)
+
+            self.img_props = pd.concat([self.img_props, img_props])
+            self.cluster_props = pd.concat([self.cluster_props, cluster_props])
             
-            plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.htmls_path, dt_string, self.show_plts)
+            if self.gen_plts:
+                plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.htmls_path, dt_string, self.show_plts)
 
         else:
             print('No clusters were found in FOCAL!')
