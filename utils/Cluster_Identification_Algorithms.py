@@ -7,9 +7,9 @@ from sklearn.cluster import DBSCAN
 from scipy.spatial import distance_matrix
 from collections import Counter
 
-##from utils.focal import FOCAL
 from utils.Adjusted_FOCAL import FOCAL
-from utils.Extract import extract_AP
+##from utils.Extract import extract_AP
+from utils.Extract import extract_AP, pca_outliers_and_axes
 
 
 def cover_space_sample(xyz, radius, max_samples):
@@ -103,9 +103,18 @@ def sample_and_group(xyz, radius, max_samples=100, min_npoints=-1):
     return centroids[rows], groups
 
 
-def general_cluster_and_group(xyz, labels, fname):
+def general_cluster_and_group(xyz, labels, fname, d2_th, d3_th):
     """
-    @param: xyz - dataframe, x,y,z,labels
+    @params:
+    @@ xyz - dataframe: x,y,z,labels
+    @@ labels - list: unique cluster labels
+    @@ fname - str: current file name
+    @@ d2_th - float: 2D density threshold
+    @@ d3_th - float: 3D density threshold
+    @returns:
+    @@ img_pros - dataframe: properties of the entire scan
+    @@ clstr_props - dataframe: properties of each cluster in the scan
+    @@ noise - list: points that were discarded due to density threshold to add to non-clustered localisations dataframe
     """
 
     unique_labels = set(labels)
@@ -128,6 +137,14 @@ def general_cluster_and_group(xyz, labels, fname):
         for p in clustered_lst:
             l = p[3]
             clusters[str(int(l))].append(p)
+
+        img_props, clstr_props, cluster_props_dict, dropped_labels = extract_AP(clusters, d2_th, d3_th)
+
+        # Remove clusters that were eliminated due to low density
+        for label in dropped_labels:
+            ln = xyz.loc[xyz['Label'] == label, 'Label'] = -1
+            del clusters[str(label)]
+
         sorted_vals = sorted(clusters.values(), reverse = True)
         sorted_clusters = dict()
         for i in sorted_vals:
@@ -137,8 +154,6 @@ def general_cluster_and_group(xyz, labels, fname):
                     break
         number_of_locs = len(xyz.index)
         number_of_locs_assigned_to_clusters = len(clustered_df.index)
-
-        img_props, clstr_props, cluster_props_dict = extract_AP(clusters)
         
         # Inserting columns to the beginning of the DataFrames
         clstr_props.insert(loc = 0,
@@ -160,8 +175,9 @@ def general_cluster_and_group(xyz, labels, fname):
     else:
         img_props = pd.DataFrame()
         clstr_props = pd.DataFrame()
+        noise = []
     
-    return img_props, clstr_props, cluster_props_dict
+    return img_props, clstr_props, cluster_props_dict, xyz
 
 
 def dbscan_cluster_and_group(xyz,
@@ -170,7 +186,10 @@ def dbscan_cluster_and_group(xyz,
                              max_std_distance = 2.5,
                              metric = 'euclidean',
                              alg = 'auto',
-                             fname = ''):
+                             fname = '',
+                             pca_stddev = 2.5,
+                             d2_th = 0.0,
+                             d3_th = 0.0):
     """Use DBSCAN to cluster a given list of points, then bound them by rects.
 
         :param xyz: list of lists where each inner list represents a point (row_x, col_y).
@@ -199,20 +218,72 @@ def dbscan_cluster_and_group(xyz,
     labels = clustering.labels_
     print('DBSCAN Labels:\n', labels)
     xyz['Label'] = labels
+    ## Changed Code from here until line 217
+    orig_noise = xyz.loc[xyz['Label'] == -1]
+    xyzl = xyz.copy()
+    if pca_stddev != None:
+        data = pd.DataFrame()
+        for l in set(labels):
+            if l != -1:
+                cluster_df = xyz.loc[xyz['Label'] == l]
+                cluster = cluster_df[['x', 'y', 'z']].to_numpy()
+                denoised_cluster, dropped_noise = pca_outliers_and_axes(cluster, pca_stddev)
+                denoised_cluster_df = pd.DataFrame(denoised_cluster, columns = ['x', 'y', 'z'])
+                dropped_noise_df = pd.DataFrame(dropped_noise, columns = ['x', 'y', 'z'])
+                denoised_cluster_df['Label'] = [l]*len(denoised_cluster_df.index)
+                dropped_noise_df['Label'] = [-1]*len(dropped_noise_df.index)
+                data = pd.concat([data, denoised_cluster_df, dropped_noise_df], axis = 0)
+        xyz = pd.concat([data, orig_noise])
+        ul = set(labels)
+        if -1 in ul:
+            ul.remove(-1)
+        if len(ul) > 0:
+            ls = set(xyz.loc[xyz['Label'] != -1])
+            if len(ls) > 0:
+                img_props, clstr_props, cluster_props_dict, xyzl = general_cluster_and_group(xyz, xyz['Label'].values.tolist(), fname, d2_th, d3_th)
+                
+                if len(img_props.index) > 0:
+
+                    img_props['Scan Parameters'] = [['Algorithm: DBSCAN',
+                                                     'epsilon: ' + str(eps),
+                                                     'min_samples: ' + str(min_samples),
+                                                     'max_std_distance: ' + str(max_std_distance),
+                                                     'metric: ' + str(metric),
+                                                     'alg: ' + str(alg),
+                                                     'PCA: ' + str(pca_stddev)]]
+##                for p in noise:
+##                    row_num = xyz.loc[(xyz['x'] == p[0]) & (xyz['y'] == p[1]) & (xyz['z'] == p[2])].index.tolist()
+##                    for n in row_num:
+##                        xyz.at[n, 'Label'] = -1
+                
+            else:
+                img_props = pd.DataFrame()
+                clstr_props = pd.DataFrame()
+                cluster_props_dict = {}
+        
+        else:
+            img_props = pd.DataFrame()
+            clstr_props = pd.DataFrame()
+            cluster_props_dict = {}
     
-    img_props, clstr_props, cluster_props_dict = general_cluster_and_group(xyz, labels, fname)
+    else:
+        img_props, clstr_props, cluster_props_dict, xyzl = general_cluster_and_group(xyz, labels, fname, d2_th, d3_th)
 
-    if len(img_props.index) > 0:
+        if len(img_props.index) > 0:
 
-        img_props['Scan Parameters'] = [['Algorithm: DBSCAN',
-                                         'epsilon: ' + str(eps),
-                                         'min_samples: ' + str(min_samples),
-                                         'max_std_distance: ' + str(max_std_distance),
-                                         'metric: ' + str(metric),
-                                         'alg: ' + str(alg)]]
+            img_props['Scan Parameters'] = [['Algorithm: DBSCAN',
+                                             'epsilon: ' + str(eps),
+                                             'min_samples: ' + str(min_samples),
+                                             'max_std_distance: ' + str(max_std_distance),
+                                             'metric: ' + str(metric),
+                                             'alg: ' + str(alg),
+                                             'PCA: No PCA']]
+##        for p in noise:
+##            row_num = xyz.loc[(xyz['x'] == p[0]) & (xyz['y'] == p[1]) & (xyz['z'] == p[2])].index.tolist()
+##            for n in row_num:
+##                xyz.at[n, 'Label'] = -1
     
-
-    return img_props, clstr_props, cluster_props_dict, xyz
+    return img_props, clstr_props, cluster_props_dict, xyzl
 
 
 def hdbscan_cluster_and_group(xyz,
@@ -222,7 +293,10 @@ def hdbscan_cluster_and_group(xyz,
                               extracting_alg = "leaf",
                               alpha = 1.0,
                               max_std_distance = 2.5,
-                              fname = ''):
+                              fname = '',
+                              pca_stddev = 2.5,
+                              d2_th = 0.0,
+                              d3_th = 0.0):
     """Use DBSCAN to cluster a given list of points, then bound them by rects.
 
         :param xyz: list of lists where each inner list represents a point (row_x, col_y).
@@ -260,18 +334,80 @@ def hdbscan_cluster_and_group(xyz,
     print(clustering)
     labels = clustering.labels_
     xyz['Label'] = labels
-    img_props, clstr_props, cluster_props_dict = general_cluster_and_group(xyz, labels, fname)
+    ## Changed code from here until line 286
+    orig_noise = xyz.loc[xyz['Label'] == -1]
+    xyzl = xyz.copy()
+    try:
+        if pca_stddev != None:
+            data = pd.DataFrame()
+            for l in set(labels):
+                if l != -1:
+                    cluster_df = xyz.loc[xyz['Label'] == l]
+                    cluster = cluster_df[['x', 'y', 'z']].to_numpy()
 
-    if len(img_props.index) > 0:
-        img_props['Scan Parameters'] = [['Algorithm: HDBSCAN',
-                                         'min_cluster_points: ' + str(min_cluster_points),
-                                         'epsilon_threshold: ' + str(epsilon_threshold),
-                                         'min_samples: ' + str(min_samples),
-                                         'extracting_alg: ' + str(extracting_alg),
-                                         'alpha: ' + str(alpha),
-                                         'max_std_distance: ' + str(max_std_distance)]]
+                    denoised_cluster, dropped_noise = pca_outliers_and_axes(cluster, pca_stddev)
+    ##                if (denoised_cluster.all == None) or (dropped_noise == None):
+    ##                    print('No clusters were found by HDBSCAN')
+    ##                    return None
+                    denoised_cluster_df = pd.DataFrame(denoised_cluster, columns = ['x', 'y', 'z'])
+                    dropped_noise_df = pd.DataFrame(dropped_noise, columns = ['x', 'y', 'z'])
+                    denoised_cluster_df['Label'] = [l]*len(denoised_cluster_df.index)
+                    dropped_noise_df['Label'] = [-1]*len(dropped_noise_df.index)
+                    data = pd.concat([data, denoised_cluster_df, dropped_noise_df], axis = 0)
+            xyz = pd.concat([data, orig_noise])
+            ul = set(labels)
+            if -1 in ul:
+                ul.remove(-1)
+            if len(ul) > 0:
+                ls = set(xyz.loc[xyz['Label'] != -1])
+                if len(ls) > 0:
+                    img_props, clstr_props, cluster_props_dict, xyzl = general_cluster_and_group(xyz, xyz['Label'].values.tolist(), fname, d2_th, d3_th)
 
-    return img_props, clstr_props, cluster_props_dict, xyz
+                    if len(img_props.index) > 0:
+                        img_props['Scan Parameters'] = [['Algorithm: HDBSCAN',
+                                                         'min_cluster_points: ' + str(min_cluster_points),
+                                                         'epsilon_threshold: ' + str(epsilon_threshold),
+                                                         'min_samples: ' + str(min_samples),
+                                                         'extracting_alg: ' + str(extracting_alg),
+                                                         'alpha: ' + str(alpha),
+                                                         'max_std_distance: ' + str(max_std_distance),
+                                                         'PCA: ' + str(pca_stddev)]]
+##                    for p in noise:
+##                        row_num = xyz.loc[(xyz['x'] == p[0]) & (xyz['y'] == p[1]) & (xyz['z'] == p[2])].index.tolist()
+##                        for n in row_num:
+##                            xyz.at[n, 'Label'] = -1
+                
+                else:
+                    img_props = pd.DataFrame()
+                    clstr_props = pd.DataFrame()
+                    cluster_props_dict = {}
+            
+            else:
+                img_props = pd.DataFrame()
+                clstr_props = pd.DataFrame()
+                cluster_props_dict = {}
+
+        else:
+            img_props, clstr_props, cluster_props_dict, xyzl = general_cluster_and_group(xyz, labels, fname, d2_th, d3_th)
+
+            if len(img_props.index) > 0:
+                img_props['Scan Parameters'] = [['Algorithm: HDBSCAN',
+                                                 'min_cluster_points: ' + str(min_cluster_points),
+                                                 'epsilon_threshold: ' + str(epsilon_threshold),
+                                                 'min_samples: ' + str(min_samples),
+                                                 'extracting_alg: ' + str(extracting_alg),
+                                                 'alpha: ' + str(alpha),
+                                                 'max_std_distance: ' + str(max_std_distance),
+                                                 'PCA: No PCA']]
+##            for p in noise:
+##                row_num = xyz.loc[(xyz['x'] == p[0]) & (xyz['y'] == p[1]) & (xyz['z'] == p[2])].index.tolist()
+##                for n in row_num:
+##                    xyz.at[n, 'Label'] = -1
+
+        return img_props, clstr_props, cluster_props_dict, xyzl
+
+    except BaseException as be:
+        print(be)
 
 
 
@@ -281,7 +417,10 @@ def focal_cluster_and_group(xyz,
                             minL = 1,
                             minC = 25,
                             minPC = 0,
-                            fname = ''):
+                            fname = '',
+                            pca_stddev = 2.5,
+                            d2_th = 0.0,
+                            d3_th = 0.0):
     """Use FOCAL to cluster a given list of points, then bound them by rects.
 
         :param xyz: list of lists, each inner list represents a point (row_x, col_y).
@@ -298,15 +437,70 @@ def focal_cluster_and_group(xyz,
     print('minPC in focal_cluster_and_group = ', minPC)
     all_locs_df, clustered_df = FOCAL(xyz, minL, minC, sigma, minPC)
 
-    labels = all_locs_df['Label']
-    img_props, clstr_props, cluster_props_dict = general_cluster_and_group(all_locs_df, labels, fname)
+    labels = all_locs_df['Label'].values.tolist()
+    ## Changed code from here until line 338
+    orig_noise = all_locs_df.loc[all_locs_df['Label'] == -1]
+    fin_locs_df = all_locs_df.copy()
+    if pca_stddev != None:
+        data = pd.DataFrame()
+        for l in set(labels):
+            if l != -1:
+                cluster_df = all_locs_df.loc[all_locs_df['Label'] == l]
+                cluster = cluster_df[['x', 'y', 'z']].to_numpy()
+                denoised_cluster, dropped_noise = pca_outliers_and_axes(cluster, pca_stddev)
+                denoised_cluster_df = pd.DataFrame(denoised_cluster, columns = ['x', 'y', 'z'])
+                dropped_noise_df = pd.DataFrame(dropped_noise, columns = ['x', 'y', 'z'])
+                denoised_cluster_df['Label'] = [l]*len(denoised_cluster_df.index)
+                dropped_noise_df['Label'] = [-1]*len(dropped_noise_df.index)
+                data = pd.concat([data, denoised_cluster_df, dropped_noise_df], axis = 0)
 
-    if len(img_props.index) > 0:
-        img_props['Scan Parameters'] = [['Algorithm: FOCAL',
-                                         'Sigma: ' + str(sigma),
-                                         'minL: ' + str(minL),
-                                         'minC: ' + str(minC),
-                                         'minPC: ' + str(minPC)]]
+        all_locs_df = pd.concat([data, orig_noise])
+        ul = set(labels)
+        if -1 in ul:
+            ul.remove(-1)
+        if len(ul) > 0:
+            ls = set(all_locs_df.loc[all_locs_df['Label'] != -1])
+            if len(ls) > 0:
+                img_props, clstr_props, cluster_props_dict, fin_locs_df = general_cluster_and_group(data, all_locs_df['Label'].values.tolist(), fname, d2_th, d3_th)
 
-    return img_props, clstr_props, cluster_props_dict, all_locs_df
+                if len(img_props.index) > 0:
+                    img_props['Scan Parameters'] = [['Algorithm: FOCAL',
+                                                     'Sigma: ' + str(sigma),
+                                                     'minL: ' + str(minL),
+                                                     'minC: ' + str(minC),
+                                                     'minPC: ' + str(minPC),
+                                                     'PCA: ' + str(pca_stddev)]]
+
+##                for p in noise:
+##                    row_num = all_locs_df.loc[(all_locs_df['x'] == p[0]) & (all_locs_df['y'] == p[1]) & (all_locs_df['z'] == p[2])].index.tolist()
+##                    for n in row_num:
+##                        all_locs_df.at[n, 'Label'] = -1
+                
+            else:
+                img_props = pd.DataFrame()
+                clstr_props = pd.DataFrame()
+                cluster_props_dict = {}
+        
+        else:
+            img_props = pd.DataFrame()
+            clstr_props = pd.DataFrame()
+            cluster_props_dict = {}
+    else:
+        img_props, clstr_props, cluster_props_dict, fin_locs_df = general_cluster_and_group(all_locs_df, labels, fname, d2_th, d3_th)
+
+        if len(img_props.index) > 0:
+            img_props['Scan Parameters'] = [['Algorithm: FOCAL',
+                                             'Sigma: ' + str(sigma),
+                                             'minL: ' + str(minL),
+                                             'minC: ' + str(minC),
+                                             'minPC: ' + str(minPC),
+                                             'PCA: No PCA']]
+
+##        for p in noise:
+##            row_num = all_locs_df.loc[(all_locs_df['x'] == p[0]) & (all_locs_df['y'] == p[1]) & (all_locs_df['z'] == p[2])].index.tolist()
+##            for n in row_num:
+##                all_locs_df.at[n, 'Label'] = -1
+            
+
+    return img_props, clstr_props, cluster_props_dict, fin_locs_df
     
