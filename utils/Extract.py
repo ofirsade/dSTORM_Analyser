@@ -12,6 +12,7 @@ import statistics
 import functools
 import ast
 from sklearn.decomposition import PCA
+import sys
 
 
 def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
@@ -44,7 +45,6 @@ def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
         pc_one = transformed_data.tolist()[0]
         std = transformed_data[0].std()
         noise = [idx for idx,val in enumerate(pc_one) if np.abs(val) >= std * stddev_factor]
-##        noise_data = []
 
         if (len(noise) > 0):
             print("Noise reduction: %d points dropped due to being %f times higher than std (second PC)" % (len(noise), stddev_factor))
@@ -60,7 +60,6 @@ def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
 
             if (len(noise) > 0):
                 print("Noise reduction: %d points dropped due to being %f times higher than std" % (len(noise), stddev_factor))
-##                noise_reduce = True
 
             ### drop additional noise
 ##            noise_data.append(transformed_data[noise])
@@ -69,8 +68,9 @@ def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
         #restore mean in reduced original data
         original_data_reduced = np.matrix(feature_vec).I * transformed_data
         restored = np.stack([[a + dimensions_mean[i] for a in column] for i, column in enumerate(original_data_reduced.tolist())])
+        restored_noise = [item for item in np_array if item not in restored.T]
         
-        return restored.T#, noise_reduce)#, noise_data
+        return restored.T, restored_noise#, noise_reduce)#, noise_data
     
     except Exception as e:
         print("Error ocurred during PCA noise reduction!")
@@ -78,6 +78,9 @@ def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(e, exc_type, fname, exc_tb.tb_lineno)
         print(e)
+        ret1 = None
+        ret2 = None
+        return ret1, ret2
 
 
 # ************************************************************** Polygon ************************************************************** #
@@ -200,11 +203,13 @@ def calc_polygon_radius(clusters):
     return mean_radius, median_radius, radii
 
 
-def calc_all(clusters):
+def calc_all(clusters, d2_th, d3_th):
     """
     Calculates the volume of the convex hull containing each cluster.
-    Param:
-     ** no_noise_lst: labeled localizations which were assigned to clusters (type list).
+    @Params:
+    @@ no_noise_lst: labeled localizations which were assigned to clusters (type list).
+    @@ d2_th - float: 2D density threshold
+    @@ d3_th - float: 3D density threshold
     """
     gen_lst = []
     vols_list = []
@@ -223,6 +228,7 @@ def calc_all(clusters):
     mean_dens_3d = None
     med_dens_3d = None
     cluster_props_dict = dict()
+    noise = []
     if len(clusters.values()) > 0:
         for label,cluster in clusters.items():
 
@@ -230,11 +236,9 @@ def calc_all(clusters):
 
             # Calculate the volume of current cluster
             volume = ConvexHull(points_3d).volume
-            vols_list.append(volume)
 
             # Count the number of localisations in current clusster
             loc_num = len(points_3d)
-            loc_list.append(loc_num)
 
             # Calculate the 2D density of current cluster
             points_2d = np.array([item[:2] for item in cluster])
@@ -242,40 +246,59 @@ def calc_all(clusters):
             corners = list(set(functools.reduce(lambda x,y: x+y,
                                                 [[(a,b) for a,b in x] for x in points_2d[hull.simplices]])))
             temp_area = PolygonArea(PolygonSort(corners))
-            density_2d = loc_num / temp_area
-            dens_2d_list.append(density_2d)
+            density_2d = (1000 * loc_num) / temp_area
+            if density_2d >= d2_th:
+                dens_2d_list.append(density_2d)
+            else:
+                noise.append(label)
+                print('Cluster ', label, ' was dropped due to 2D density < ', d2_th)
+                continue
 
             # Calculate 2D radius
             hull = ConvexHull(points_2d)
             perimeter = hull.area
             size = hull.volume
             radius = 2 * size / perimeter
-            radii_list.append(radius)
             
             # Calculate 3D density
             hull = scipy.spatial.ConvexHull(points_3d)
             density_3d = (1000 * loc_num) / volume
-            dens_3d_list.append(density_3d)
+            if density_3d >= d3_th:
+                dens_3d_list.append(density_3d)
+            else:
+##                for p in points_3d:
+##                    p = np.append(p, -1)
+##                    noise.append(p)
+                noise.append(label)
+                print('Cluster ', label, ' was dropped due to 3D density < ', d3_th)
+                continue
 
+            vols_list.append(volume)
+            loc_list.append(loc_num)
+            radii_list.append(radius)
+            
             clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, cluster]
             gen_lst.append(clst_lst)
             cluster_props_dict[label] = clst_lst[1:6]
-            
-        mean_vol = statistics.mean(vols_list)
-        med_vol = statistics.median(vols_list)
-        mean_locs = statistics.mean(loc_list)
-        med_locs = statistics.median(loc_list)
-        mean_dens_2d = statistics.mean(dens_2d_list)
-        med_dens_2d = statistics.median(dens_2d_list)
-        mean_radius = statistics.mean(radii_list)
-        med_radius = statistics.median(radii_list)
-        mean_dens_3d = statistics.mean(dens_3d_list)
-        med_dens_3d = statistics.median(dens_3d_list)
+
+        if len(vols_list) != 0:   
+            mean_vol = statistics.mean(vols_list)
+            med_vol = statistics.median(vols_list)
+            mean_locs = statistics.mean(loc_list)
+            med_locs = statistics.median(loc_list)
+            mean_dens_2d = statistics.mean(dens_2d_list)
+            med_dens_2d = statistics.median(dens_2d_list)
+            mean_radius = statistics.mean(radii_list)
+            med_radius = statistics.median(radii_list)
+            mean_dens_3d = statistics.mean(dens_3d_list)
+            med_dens_3d = statistics.median(dens_3d_list)
+        else:
+            print('All clusters were dropped due to low densities')
             
     else:
         print('No clusters were found!')
 
-    return gen_lst, mean_vol, med_vol, mean_locs, med_locs, mean_dens_2d, med_dens_2d, mean_radius, med_radius, mean_dens_3d, med_dens_3d, cluster_props_dict
+    return gen_lst, mean_vol, med_vol, mean_locs, med_locs, mean_dens_2d, med_dens_2d, mean_radius, med_radius, mean_dens_3d, med_dens_3d, cluster_props_dict, noise
 
 
 # ************************************************************************************************************************************* #
@@ -375,13 +398,16 @@ def remove_outliers(pnt_lst, centroid, radius):
 
 ################################################## DBSCAN Implementation ##################################################
 
-def extract_AP(clusters):
+def extract_AP(clusters, d2_th, d3_th):
     """
     @Param:
-    @@clusters - dict, keys are cluster labels, values are localisations assigned to cluster with label==key
+    @@ clusters - dict, keys are cluster labels, values are localisations assigned to cluster with label==key
+    @@ d2_th - float, 2D density threshold
+    @@ d3_th - float, 3D density threshold
     @Return:
-    @@prop_lst - list, cluster properties of each cluster in the dataset.
-    @@gen_lst - list, mean and median cluster properties of the image.
+    @@ prop_lst - list, cluster properties of each cluster in the dataset.
+    @@ gen_lst - list, mean and median cluster properties of the image.
+    @@ noise - list, points to add to non-clustered list of localisations.
     """
 ##    vols_dict = calc_volumes(clusters)
 ##    mean_loc_num, med_loc_num = calc_localizations(clusters)
@@ -401,7 +427,7 @@ def extract_AP(clusters):
 
 ##    img_props_df = pd.DataFrame(img_props_lst, columns = img_cols)
 
-    gen_list, mean_vol, med_vol, mean_locs, med_locs, mean_2d_dens, med_2d_dens, mean_radius, med_radius, mean_3d_dens, med_3d_dens, cluster_props_dict = calc_all(clusters)
+    gen_list, mean_vol, med_vol, mean_locs, med_locs, mean_2d_dens, med_2d_dens, mean_radius, med_radius, mean_3d_dens, med_3d_dens, cluster_props_dict, noise = calc_all(clusters, d2_th, d3_th)
     
     img_props_df = pd.DataFrame()
     img_props_df['Mean Volume'] = [mean_vol]
@@ -429,5 +455,7 @@ def extract_AP(clusters):
     
 ##    print(clstr_props_df)
     
-    return img_props_df, clstr_props_df, cluster_props_dict
+    return img_props_df, clstr_props_df, cluster_props_dict, noise
+    
+    
     
