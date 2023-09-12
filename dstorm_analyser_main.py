@@ -20,7 +20,6 @@ multiprocessing.set_start_method('forkserver', force = True)
 multiprocessing.freeze_support()
 
 
-
 class AlignDelegate(QStyledItemDelegate):
     def initStyleOption(self, option, index):
         super(AlignDelegate, self).initStyleOption(option, index)
@@ -50,6 +49,8 @@ class MainWindow(QMainWindow):
 
         self.path = []
         self.checked_cbs = []
+        self.gen_files = True
+        self.gen_plots = True
         self.open_plots = False
 ##        self.output_dir = os.path.abspath(os.path.dirname(__file__))
         self.output_dir_set = False
@@ -133,10 +134,21 @@ class MainWindow(QMainWindow):
         self.btn2.clicked.connect(self.get_dir)
         self.overall_layout.addWidget(self.btn2, 1, 1)
 
+        self.gen_files_cb = QCheckBox('Generate Files')
+        self.gen_files_cb.setChecked(True)
+        self.gen_files_cb.stateChanged.connect(lambda:self.checked_generate_files())
+        self.overall_layout.addWidget(self.gen_files_cb, 1, 2)
+
+        self.gen_plots_cb = QCheckBox('Generate Plots')
+        self.gen_plots_cb.setChecked(True)
+        self.gen_plots_cb.stateChanged.connect(lambda:self.checked_generate_plots())
+        self.overall_layout.addWidget(self.gen_plots_cb, 1, 3)
+
         self.show_plots_cb = QCheckBox('Show Plots')
         self.show_plots_cb.setChecked(False)
+        self.show_plots_cb.setCheckable(True)
         self.show_plots_cb.stateChanged.connect(lambda:self.checked_show_plots())
-        self.overall_layout.addWidget(self.show_plots_cb, 1, 2)
+        self.overall_layout.addWidget(self.show_plots_cb, 1, 4)
 
         self.db = QCheckBox('DBSCAN')
         self.db.setChecked(False)
@@ -185,7 +197,8 @@ class MainWindow(QMainWindow):
 ##        if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
         if self.output_dir_set:
             htmls_path, csvs_path = self.set_output_paths(True)
-            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config,
+                                     self.gen_files, self.gen_plots, self.open_plots, self.pbar)
 ##            self.thread = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
 ##            self.thread.progress.connect(self.update_progress())
             self.msg = QMessageBox()
@@ -199,7 +212,8 @@ class MainWindow(QMainWindow):
         else:
             self.output_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "Results")
             htmls_path, csvs_path = self.set_output_paths(False)
-            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
+            dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config,
+                                     self.gen_files, self.gen_plots, self.open_plots, self.pbar)
 ##            self.thread = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
 ##            self.thread.progress.connect(self.update_progress())
             self.msg = QMessageBox()
@@ -208,6 +222,22 @@ class MainWindow(QMainWindow):
             self.msg.setStandardButtons(QMessageBox.Ok) # seperate buttons with "|"
             self.msg.setDefaultButton(QMessageBox.Ok)  # setting default button to Cancel
             self.msg.show()
+
+        for alg in self.algs:
+            if alg[0] in dataset.clust_res.keys():
+                img_props = (dataset.clust_res[alg[0]])[0]
+                cluster_props = (dataset.clust_res[alg[0]])[1]
+
+                now = datetime.now() # datetime object containing current date and time
+                dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
+                img_props_name = dt_string + ' Image ' + alg[0] + '.xlsx'
+                cluster_props_name = dt_string + ' Cluster ' + alg[0] + '.xlsx'
+                img_path = os.path.join(csvs_path, '', img_props_name)
+                cluster_path = os.path.join(csvs_path, '', cluster_props_name)
+
+                if self.gen_files:
+                    img_props.to_excel(img_path)
+                    cluster_props.to_excel(cluster_path)
 
 
 ##    def update_progress(self, progress):
@@ -246,8 +276,8 @@ class MainWindow(QMainWindow):
             if alg == 'DBSCAN':
                 self.config['DBSCAN'] = [int(self.p1_photoncount.text()),
                                          int(self.p1_xprecision.text()),
-                                         int(self.p1_density_threshold2.text()),
-                                         int(self.p1_density_threshold3.text()),
+                                         float(self.p1_density_threshold2.text()),
+                                         float(self.p1_density_threshold3.text()),
 ##                                         int(self.p1_min_pts.text()),
                                          int(self.p1_epsilon.text()),
                                          int(self.p1_min_samples.text())]
@@ -259,8 +289,8 @@ class MainWindow(QMainWindow):
             elif alg == 'HDBSCAN':
                 self.config['HDBSCAN'] = [int(self.p2_photoncount.text()),
                                           int(self.p2_xprecision.text()),
-                                          int(self.p2_density_threshold2.text()),
-                                          int(self.p2_density_threshold3.text()),
+                                          float(self.p2_density_threshold2.text()),
+                                          float(self.p2_density_threshold3.text()),
                                           int(self.p2_min_cluster_points.text()),
                                           int(self.p2_epsilon.text()),
                                           int(self.p2_min_samples.text()),
@@ -274,8 +304,8 @@ class MainWindow(QMainWindow):
             elif alg == 'FOCAL':
                 self.config['FOCAL'] = [int(self.p3_photoncount.text()),
                                         int(self.p3_xprecision.text()),
-                                        int(self.p3_density_threshold2.text()),
-                                        int(self.p3_density_threshold3.text()),
+                                        float(self.p3_density_threshold2.text()),
+                                        float(self.p3_density_threshold3.text()),
                                         int(self.p3_sigma.text()),
                                         int(self.p3_minL.text()),
                                         int(self.p3_minC.text()),
@@ -393,11 +423,11 @@ class MainWindow(QMainWindow):
                 self.rn1 = 7 # Number of rows for widget1
                 self.p1_photoncount = QLineEdit('1000', self)
                 self.p1_xprecision = QLineEdit('100', self)
-                self.p1_density_threshold2 = QLineEdit('0', self)
-                self.p1_density_threshold3 = QLineEdit('0', self)
+                self.p1_density_threshold2 = QLineEdit('0.0', self)
+                self.p1_density_threshold3 = QLineEdit('0.0', self)
 ##                self.p1_min_pts = QLineEdit('22', self)
-                self.p1_epsilon = QLineEdit('70', self)
-                self.p1_min_samples = QLineEdit('22', self)
+                self.p1_epsilon = QLineEdit('100', self)
+                self.p1_min_samples = QLineEdit('16', self)
                 
                 self.p1_upca = QCheckBox('')
                 self.p1_upca.setChecked(False)
@@ -453,8 +483,8 @@ class MainWindow(QMainWindow):
                 self.rn2 = 9
                 self.p2_photoncount = QLineEdit('1000', self)
                 self.p2_xprecision = QLineEdit('100', self)
-                self.p2_density_threshold2 = QLineEdit('0', self)
-                self.p2_density_threshold3 = QLineEdit('0', self)
+                self.p2_density_threshold2 = QLineEdit('0.0', self)
+                self.p2_density_threshold3 = QLineEdit('0.0', self)
                 self.p2_min_cluster_points = QLineEdit('15', self)
                 self.p2_epsilon = QLineEdit('70', self)
                 self.p2_min_samples = QLineEdit('22', self)
@@ -518,12 +548,12 @@ class MainWindow(QMainWindow):
                 self.rn3 = 8
                 self.p3_photoncount = QLineEdit('1000', self)
                 self.p3_xprecision = QLineEdit('100', self)
-                self.p3_density_threshold2 = QLineEdit('0', self)
-                self.p3_density_threshold3 = QLineEdit('0', self)
+                self.p3_density_threshold2 = QLineEdit('0.0', self)
+                self.p3_density_threshold3 = QLineEdit('0.0', self)
                 self.p3_sigma = QLineEdit('55', self)
-                self.p3_minL = QLineEdit('1', self)
-                self.p3_minC = QLineEdit('25', self)
-                self.p3_minPC = QLineEdit('1500', self)
+                self.p3_minL = QLineEdit('10', self)
+                self.p3_minC = QLineEdit('40', self)
+                self.p3_minPC = QLineEdit('2500', self)
                 self.p3_upca = QCheckBox('')
                 self.p3_upca.setChecked(False)
                 self.p3_upca.stateChanged.connect(self.onStateChangedFB)
@@ -619,28 +649,28 @@ class MainWindow(QMainWindow):
 ##        self.listwidget.setSelectionMode(3)
 ##        self.listwidget.setToolTip('Select files for analysis,\nTo select multiple files hold Shift/CTL/CMD')
         self.listwidget.adjustSize()
-        self.overall_layout.addWidget(self.listwidget, 1, 3, 3, 2)
+        self.overall_layout.addWidget(self.listwidget, 1, 5, 3, 2)
 
         self.sel_all_btn = QPushButton(self)
         self.sel_all_btn.setText('Select All')
         self.sel_all_btn.adjustSize()
         self.sel_all_btn.setToolTip('Select all file(s) for analysis')
         self.sel_all_btn.clicked.connect(self.select_all_files)
-        self.overall_layout.addWidget(self.sel_all_btn, 4, 3, 1, 2)
+        self.overall_layout.addWidget(self.sel_all_btn, 4, 5, 1, 2)
 
         self.deselect_btn = QPushButton(self)
         self.deselect_btn.setText('Deselect All')
         self.deselect_btn.adjustSize()
         self.deselect_btn.setToolTip('Deselect all file(s) for analysis')
         self.deselect_btn.clicked.connect(self.deselect_all_files)
-        self.overall_layout.addWidget(self.deselect_btn, 5, 3, 1, 2)
+        self.overall_layout.addWidget(self.deselect_btn, 5, 5, 1, 2)
         
         self.del_btn = QPushButton(self)
         self.del_btn.setText('Remove file(s)')
         self.del_btn.adjustSize()
         self.del_btn.setToolTip('Remove selected file(s) from list')
         self.del_btn.clicked.connect(self.remove_files)
-        self.overall_layout.addWidget(self.del_btn, 6, 3, 1, 2)
+        self.overall_layout.addWidget(self.del_btn, 6, 5, 1, 2)
 
 
     def select_all_files(self):
@@ -652,7 +682,7 @@ class MainWindow(QMainWindow):
             t = self.listwidget.item(index).text()
             if t not in self.selected_files:
                 self.selected_files.append(t)
-                print(t, ' has been added to selected files list')
+##                print(t, ' has been added to selected files list')
         if len(self.selected_files) >= 1:
             self.db.setCheckable(True)
             self.hb.setCheckable(True)
@@ -669,7 +699,7 @@ class MainWindow(QMainWindow):
             t = self.listwidget.item(index).text()
             if t in self.selected_files:
                 self.selected_files.remove(t)
-                print(t, ' has been removed from selected files list')
+##                print(t, ' has been removed from selected files list')
         if len(self.selected_files) < 1:
             self.db.setCheckable(False)
             self.hb.setCheckable(False)
@@ -685,9 +715,9 @@ class MainWindow(QMainWindow):
         t = item.text()
         if t in self.selected_files:
             self.selected_files.remove(t)
-            print(t, ' has been removed from selected files')
+##            print(t, ' has been removed from selected files')
         self.listwidget.takeItem(self.listwidget.currentRow())
-        print(t, ' has been removed from list')
+##        print(t, ' has been removed from list')
         
         
     def get_files(self):
@@ -738,6 +768,28 @@ class MainWindow(QMainWindow):
         self.output_dir_set = True
         self.overall_layout.addWidget(self.outdir, 6, 1, 1, 2)
 
+
+    def checked_generate_files(self):
+        """
+        Tells the programme whether to generate and save spreadsheets or not
+        """
+        if self.gen_files_cb.isChecked():
+            self.gen_files = True
+        else:
+            self.gen_files = False
+
+    def checked_generate_plots(self):
+        """
+        Tells the programme whether to generate and save plots or not
+        """
+        if self.gen_plots_cb.isChecked():
+            self.gen_plots = True
+            self.show_plots_cb.setCheckable(True)
+        else:
+            self.gen_plots = False
+            self.show_plots_cb.setCheckable(False)
+
+
     def checked_show_plots(self):
         """
         Tells the plotting function to open plots when they're ready, and not only save them
@@ -767,10 +819,10 @@ class MainWindow(QMainWindow):
         t = item.text()
         if t not in self.selected_files:
             self.selected_files.append(t)
-            print(t, ' has been added to selected files list')
+##            print(t, ' has been added to selected files list')
         else:
             self.selected_files.remove(t)
-            print(t, ' has been removed from selected files list')
+##            print(t, ' has been removed from selected files list')
         if len(self.selected_files) >= 1:
             self.db.setCheckable(True)
             self.hb.setCheckable(True)
