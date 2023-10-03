@@ -319,7 +319,7 @@ class Grid:
 
         return reduced_data
 
-    def div_lst_to_clusters(self, full_lst, no_noise_lst):
+    def div_lst_to_clusters(self, no_noise_lst):
         """
         Divides list of labeled points into a dictionary.
         The dictionary's keys represent cluster labels.
@@ -343,7 +343,7 @@ class Grid:
         self.cluster_num = len(self.labels)
         self.clusters = clstrs_dict
 ##        print(self.clusters.keys())
-        return full_lst, no_noise_lst
+        return no_noise_lst
 
     def calc_volumes(self):
         """
@@ -650,16 +650,16 @@ def FOCAL(xyz_df, minL, minC, sigma, minPC):
     grid.is_above_threshold()
     grid.is_above_pc()
     full_lst, no_noise_lst = grid.is_FOCAL_cluster(xyz_df)
-    full_lst1, no_noise_lst1 = grid.div_lst_to_clusters(full_lst, no_noise_lst)
+    no_noise_lst1 = grid.div_lst_to_clusters(no_noise_lst)
 
 ##    all_locs_df = pd.DataFrame(full_lst1, columns = ['x', 'y', 'z', 'Label'])
 ##    clustered_df = pd.DataFrame(no_noise_lst1, columns = ['x', 'y', 'z', 'Label'])
     
     all_locs_df = pd.DataFrame()
-    all_locs_df['x'] = [p[0] for p in full_lst1]
-    all_locs_df['y'] = [p[1] for p in full_lst1]
-    all_locs_df['z'] = [p[2] for p in full_lst1]
-    all_locs_df['Label'] = [p[4] for p in full_lst1]
+    all_locs_df['x'] = [p[0] for p in full_lst]
+    all_locs_df['y'] = [p[1] for p in full_lst]
+    all_locs_df['z'] = [p[2] for p in full_lst]
+    all_locs_df['Label'] = [p[4] for p in full_lst]
     
     clustered_df = pd.DataFrame()
     clustered_df['x'] = [p[0] for p in no_noise_lst1]
