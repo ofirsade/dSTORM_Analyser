@@ -15,11 +15,13 @@ from sklearn.decomposition import PCA
 import sys
 
 
-def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
+def pca_outliers_and_axes(np_array, stddev_factor):
     try:
+##        print('PCA Line 20: ', len(np_array))
         points_mat = np.matrix(np_array)
         transposed_mat = points_mat.T
         dimensions_mean = [sum(column) / len(column) for column in transposed_mat.tolist()]
+        noise_two = None
 
         normed_transposed_mat = np.matrix(np.stack([[a - dimensions_mean[i] for a in column] for i, column in enumerate(transposed_mat.tolist())]))
         covariance_matrix = np.cov(normed_transposed_mat)
@@ -47,7 +49,7 @@ def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
         noise = [idx for idx,val in enumerate(pc_one) if np.abs(val) >= std * stddev_factor]
 
         if (len(noise) > 0):
-            print("Noise reduction: %d points dropped due to being %f times higher than std (second PC)" % (len(noise), stddev_factor))
+            print("Noise reduction: %d points dropped due to being %f times higher than std" % (len(noise), stddev_factor))
 
         ### drop noise
 ##        noise_data = np.take(transformed_data, noise, axis = 1)
@@ -56,21 +58,23 @@ def pca_outliers_and_axes(np_array, stddev_factor = 1.0):
         if (len(transformed_data) > 2):
             pc_two = transformed_data.tolist()[1]
             std = transformed_data[1].std()
-            noise = [idx  for idx,val in enumerate(pc_two) if np.abs(val) >= std * stddev_factor]
+            noise_two = [idx  for idx,val in enumerate(pc_two) if np.abs(val) >= std * stddev_factor]
 
-            if (len(noise) > 0):
-                print("Noise reduction: %d points dropped due to being %f times higher than std" % (len(noise), stddev_factor))
+            if (len(noise_two) > 0):
+                print("Noise reduction: %d points dropped due to being %f times higher than std (second PC)" % (len(noise_two), stddev_factor))
 
             ### drop additional noise
 ##            noise_data.append(transformed_data[noise])
-            transformed_data = np.delete(transformed_data, noise, 1)
-
+            transformed_data = np.delete(transformed_data, noise_two, 1)
+        if noise_two != None:
+            noise = noise + noise_two
         #restore mean in reduced original data
         original_data_reduced = np.matrix(feature_vec).I * transformed_data
         restored = np.stack([[a + dimensions_mean[i] for a in column] for i, column in enumerate(original_data_reduced.tolist())])
+
         restored_noise = [item for item in np_array if item not in restored.T]
         
-        return restored.T, restored_noise#, noise_reduce)#, noise_data
+        return restored.T, restored_noise
     
     except Exception as e:
         print("Error ocurred during PCA noise reduction!")
@@ -456,6 +460,5 @@ def extract_AP(clusters, d2_th, d3_th):
 ##    print(clstr_props_df)
     
     return img_props_df, clstr_props_df, cluster_props_dict, noise
-    
     
     
