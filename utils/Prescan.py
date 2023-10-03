@@ -135,13 +135,11 @@ class dstorm_dataset(data.Dataset):
         **********************************************
         @ret df_row: dict, with one dataframe value and one int value
         """
-        self.orig_loc_num = len(pointcloud.index) # Original number of points before any filteration
-        print('\nInitial number of localisations: ', self.orig_loc_num, '\n')
-##        z_pointcloud = pointcloud.loc[pointcloud['z-step'] == 0]
-##        print(z_pointcloud)
+        orig_loc_num = len(pointcloud.index) # Original number of points before any filteration
+        print('\nInitial number of localisations: ', orig_loc_num, '\n')
         
         tmp_pointcloud = pointcloud.loc[pointcloud['photon-count'] >= self.pc_th]
-        pc_dp = self.orig_loc_num - len(tmp_pointcloud) # Number of points dropped by photoncount filter
+        pc_dp = orig_loc_num - len(tmp_pointcloud) # Number of points dropped by photoncount filter
         print("\nDropping " + str(pc_dp) + " localisations due to photon intensity filter (%f)" % self.pc_th + '\n')
         
         fin_pointcloud = tmp_pointcloud.loc[tmp_pointcloud['precisionx'] <= self.px_th]
@@ -150,7 +148,7 @@ class dstorm_dataset(data.Dataset):
 
         pc = fin_pointcloud[['x', 'y', 'z', 'photon-count']]
         
-        df_row = {'pointcloud': pc, 'num_of_points': len(pc)}
+        df_row = {'pointcloud': pc, 'num_of_points': orig_loc_num}
         return df_row
 
 
@@ -209,21 +207,22 @@ class DBSCAN_dataset(dstorm_dataset):
         for i,val in enumerate(data):
 ##            tmp_df = val['pointcloud']
 ##            tmp_df.sort_values(by=['x', 'y'], inplace = True)
-            print('\n', val['pointcloud'], '\n')
-            self.call_DBSCAN(val['filename'], val['pointcloud'])
+##            print('\n', val['pointcloud'], '\n')
+            self.call_DBSCAN(val['filename'], val['pointcloud'], val['num_of_points'])
         
 
 
-    def call_DBSCAN(self, filename, scanned_data):
+    def call_DBSCAN(self, filename, scanned_data, ln):
         """
         Calls DBSCAN and creates self.res - the resulting array of localisations with cluster labels
         @param filename: the filename of the data to run HDBSCAN on
         @param scanned_data: the localisations to run HDBSCAN on
+        @param ln: int, the number of localisations in the original dataframe
         """
 
         print('Filename: ', filename)
         data_df = scanned_data.copy()
-        print('\nData DF:\n', data_df)
+##        print('\nData DF:\n', data_df)
         tmp_df = data_df[['x', 'y', 'z']]
 ##        if self.pca_stddev == None: # If the user didn't select denoise with PCA
 ##            xyz_df = tmp_df
@@ -267,6 +266,9 @@ class DBSCAN_dataset(dstorm_dataset):
 ##                             column = 'Original Number of Localisations',
 ##                             value = [orig_loc_num])
 
+            img_props.insert(loc = 2,
+                             column = 'Original Number of Localisations',
+                             value = [ln])
             img_props['PCA'] = [self.pca_stddev]
 ##            if self.gen_files:
 ##                img_props['PCA'] = [self.pca_stddev]
@@ -311,16 +313,17 @@ class HDBSCAN_dataset(dstorm_dataset):
             self.pca_stddev = params[9]
         self.res = []
         for i,val in enumerate(data):
-            print('\n', val['pointcloud'], '\n')
-            self.call_HDBSCAN(val['filename'], val['pointcloud'])
+##            print('\n', val['pointcloud'], '\n')
+            self.call_HDBSCAN(val['filename'], val['pointcloud'], val['num_of_points'])
 
 
 
-    def call_HDBSCAN(self, filename, scanned_data):
+    def call_HDBSCAN(self, filename, scanned_data, ln):
         """
         Calls HDBSCAN and creates self.res - the resulting array of localisations with cluster labels
         @param filename: the filename of the data to run HDBSCAN on
         @param scanned_data: the localisations to run HDBSCAN on
+        @param ln: int, the number of localisations in the original dataframe
         """
 
         data_df = scanned_data.copy()
@@ -371,6 +374,9 @@ class HDBSCAN_dataset(dstorm_dataset):
 ##            img_props.to_excel(self.output_path + '/' + img_props_name)
 ##            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
 
+            img_props.insert(loc = 2,
+                             column = 'Original Number of Localisations',
+                             value = [ln])
             img_props['PCA'] = [self.pca_stddev]
 ##            if self.gen_files:
 ##                img_props['PCA'] = [self.pca_stddev]
@@ -415,10 +421,17 @@ class FOCAL_dataset(dstorm_dataset):
             self.pca_stddev = params[8]
         self.res = []
         for i,val in enumerate(data):
-            print('\n', val['pointcloud'], '\n')
-            self.call_FOCAL(val['filename'], val['pointcloud'])
+##            print('\n', val['pointcloud'], '\n')
+            self.call_FOCAL(val['filename'], val['pointcloud'], val['num_of_points'])
 
-    def call_FOCAL(self, filename, scanned_data):
+    def call_FOCAL(self, filename, scanned_data, ln):
+
+        """
+        Calls FOCAL and creates self.res - the resulting array of localisations with cluster labels
+        @param filename: the filename of the data to run FOCAL on
+        @param scanned_data: the localisations to run FOCAL on
+        @param ln: int, the number of localisations in the original dataframe
+        """
 
         data_df = scanned_data.copy()
         tmp_df = data_df[['x', 'y', 'z']]
@@ -469,6 +482,9 @@ class FOCAL_dataset(dstorm_dataset):
         
 ##            img_props.to_excel(self.output_path + '/' + img_props_name)
 ##            cluster_props.to_excel(self.output_path + '/' + cluster_props_name)
+            img_props.insert(loc = 2,
+                             column = 'Original Number of Localisations',
+                             value = [ln])
             img_props['PCA'] = [self.pca_stddev]
 ##            if self.gen_files:
 ##                img_props['PCA'] = [self.pca_stddev]
