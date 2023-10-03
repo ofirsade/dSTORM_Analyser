@@ -282,7 +282,7 @@ class MainWindow(QMainWindow):
                                          int(self.p1_epsilon.text()),
                                          int(self.p1_min_samples.text())]
                 if self.p1_upca.isChecked():
-                    self.p1_stdev_num = QLineEdit('1.0', self)
+##                    self.p1_stdev_num = QLineEdit('1.0', self)
                     self.p1_stdev_num.setToolTip('PCA noise reduction standard deviations')
                     self.config['DBSCAN'].append(float(self.p1_stdev_num.text()))
 
@@ -297,7 +297,7 @@ class MainWindow(QMainWindow):
                                           str(self.p2_extracting_alg.text()),
                                           float(self.p2_selection_alpha.text())]
                 if self.p2_upca.isChecked():
-                    self.p2_stdev_num = QLineEdit('1.0', self)
+##                    self.p2_stdev_num = QLineEdit('1.0', self)
                     self.p2_stdev_num.setToolTip('PCA noise reduction standard deviations')
                     self.config['HDBSCAN'].append(float(self.p2_stdev_num.text()))
 
@@ -311,7 +311,7 @@ class MainWindow(QMainWindow):
                                         int(self.p3_minC.text()),
                                         int(self.p3_minPC.text())] 
                 if self.p3_upca.isChecked():
-                    self.p3_stdev_num = QLineEdit('1.0', self)
+##                    self.p3_stdev_num = QLineEdit('1.0', self)
                     self.p3_stdev_num.setToolTip('PCA noise reduction standard deviations')
                     self.config['FOCAL'].append(float(self.p3_stdev_num.text()))
                 
