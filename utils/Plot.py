@@ -115,7 +115,36 @@ def plot_res(xyzl, cpd, fname, alg, output_path, dt_string, show_plts):
     if show_plts:
         fig.show()
 ##    show_in_window(fig, html_name)
-    
+
+
+def plot_2D_image(pts_df, fname, output_path, dt_string, show_plts):
+##    config = {
+##          'toImageButtonOptions': {
+##            'format': 'jpeg', # one of png, svg, jpeg, webp
+##            'height': 3000,
+##            'width': 4000,
+##            'scale': 1 # Multiply title/legend/axis/canvas sizes by this factor
+##          }
+##        }
+    fig = px.scatter(pts_df, x = 'x', y = 'y',
+                        opacity = 0.3,
+                        color_continuous_scale = 'rainbow',
+                        title = fname)
+    fig.update_yaxes(scaleanchor = 'x', scaleratio = 1, row = 1, col = 1)
+
+    fig.update_layout({'plot_bgcolor': 'whitesmoke'})
+    fig.update_layout(title = fname)
+    fig.update_layout(hoverlabel = dict(font_size = 18,
+                                        font_color = 'white',
+                                        font_family="Rockwell"))
+    fig.update_xaxes(range=[0, 18e3], row=1, col=1)
+    fig.update_layout(height=800, showlegend=False)
+    html_name = dt_string + ' ' + fname + '.html'
+    html_path = os.path.join(output_path, html_name)
+    fig.write_html(html_path)
+    if show_plts:
+        fig.show()
+##    fig.show(config=config)   
 
 '''
 def plot_3d_res(new_lst, name, minL, minC, sig):
