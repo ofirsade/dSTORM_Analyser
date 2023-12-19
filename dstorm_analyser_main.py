@@ -15,6 +15,7 @@ import time
 import re
 from utils.Prescan import dstorm_dataset
 import multiprocessing
+import platform
 
 multiprocessing.set_start_method('forkserver', force = True)
 multiprocessing.freeze_support()
@@ -55,11 +56,17 @@ class MainWindow(QMainWindow):
 ##        self.output_dir = os.path.abspath(os.path.dirname(__file__))
         self.output_dir_set = False
         scriptDir = os.path.dirname(os.path.realpath(__file__))
+        self.output_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "Results")
 ##        self.basedir = os.path.dirname(__file__)
         
         self.resize(1000, 800)
 ##        self.setWindowIcon(QtGui.QIcon('/Users/ofirsade/Desktop/UNI/Masters/Code/Analysis_Platform/dstormlogo2.png'))
         self.setWindowTitle('dSTORM Analyser')
+        s = platform.platform()
+        if s.startswith('macOS'):
+            self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep +  'dSTORMlogo1.icns'))
+        else:
+            self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep +  'dSTORMlogo1.png'))
 ##        self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep +  'dSTORMlogo1.png'))
 ##        print(scriptDir + os.path.sep +  'dstormlogo2.ico')
 
@@ -210,7 +217,7 @@ class MainWindow(QMainWindow):
             
 
         else:
-            self.output_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "Results")
+##            self.output_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "Results")
             htmls_path, csvs_path = self.set_output_paths(False)
             dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config,
                                      self.gen_files, self.gen_plots, self.open_plots, self.pbar)
@@ -224,14 +231,33 @@ class MainWindow(QMainWindow):
             self.msg.show()
 
         for alg in self.algs:
-            if alg[0] in dataset.clust_res.keys():
-                img_props = (dataset.clust_res[alg[0]])[0]
-                cluster_props = (dataset.clust_res[alg[0]])[1]
+            a = alg[0]
+            if a in dataset.clust_res.keys():
+                img_props = (dataset.clust_res[a])[0]
+                cluster_props = (dataset.clust_res[a])[1]
 
                 now = datetime.now() # datetime object containing current date and time
                 dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
-                img_props_name = dt_string + ' Image ' + alg[0] + '.xlsx'
-                cluster_props_name = dt_string + ' Cluster ' + alg[0] + '.xlsx'
+                if a == 'DBSCAN':
+                    names = ['Photon Count', 'X Precision', '2D Density Threshold',
+                             '3D Density Threshold', 'Epsilon', 'Min Samples']
+                elif a == 'HDBSCAN':
+                    names = ['Photon Count', 'X Precision', '2D Density Threshold',
+                             '3D Density Threshold', 'Min Points', 'Epsilon', 'Min Samples',
+                             'Extracting Algorithm', 'Selection Alpha']
+                elif a == 'FOCAL':
+                    names = ['Photon Count', 'X Precision', '2D Density Threshold',
+                             '3D Density Threshold', 'Sigma', 'MinL', 'minC', 'minPC']
+                if len(names) == len(self.config[a]) - 1:
+                    names.append('PCA')
+                names = names[4:]
+                for ind,item in enumerate((self.config[a])[4:]):
+                    if ind == 0:
+                        conf = names[ind] + ' ' + str(item)
+                    else:
+                        conf += ' ' + names[ind] + ' ' + str(item)
+                img_props_name = dt_string + ' Image ' + alg[0] + ' ' + conf + '.xlsx'
+                cluster_props_name = dt_string + ' Cluster ' + alg[0] + ' ' + conf + '.xlsx'
                 img_path = os.path.join(csvs_path, '', img_props_name)
                 cluster_path = os.path.join(csvs_path, '', cluster_props_name)
 
@@ -847,5 +873,3 @@ if __name__ == '__main__':
     win.show()
 
     app.exec_() #Kickstart the Qt event loop
-
-
