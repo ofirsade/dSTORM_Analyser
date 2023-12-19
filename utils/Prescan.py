@@ -15,7 +15,7 @@ from pathlib import Path
 from utils.Extract import extract_AP, pca_outliers_and_axes
 from utils.Cluster_Identification_Algorithms import sample_and_group, dbscan_cluster_and_group,\
      hdbscan_cluster_and_group, focal_cluster_and_group
-from utils.Plot import plot_res
+from utils.Plot import plot_res, plot_2D_image
 import time
 import sys
 
@@ -277,6 +277,7 @@ class DBSCAN_dataset(dstorm_dataset):
 
             if self.gen_plts:
                 plot_res(xyzl, cluster_props_dict, fname, 'DBSCAN', self.htmls_path, dt_string, self.show_plts)
+##                plot_2D_image(xyzl, fname, self.htmls_path, dt_string, self.show_plts)
 
             self.img_props = pd.concat([self.img_props, img_props])
             self.cluster_props = pd.concat([self.cluster_props, cluster_props])
@@ -388,6 +389,7 @@ class HDBSCAN_dataset(dstorm_dataset):
 
             if self.gen_plts:
                 plot_res(xyzl, cluster_props_dict, fname, 'HDBSCAN', self.htmls_path, dt_string, self.show_plts)
+##                plot_2D_image(xyzl, fname, self.htmls_path, dt_string, self.show_plts)
             
         else:
             print('No clusters were found in HDBSCAN!')
@@ -496,6 +498,7 @@ class FOCAL_dataset(dstorm_dataset):
             
             if self.gen_plts:
                 plot_res(xyzl, cluster_props_dict, fname, 'FOCAL', self.htmls_path, dt_string, self.show_plts)
+##                plot_2D_image(xyzl, fname, self.htmls_path, dt_string, self.show_plts)
 
         else:
             print('No clusters were found in FOCAL!')
@@ -536,5 +539,3 @@ class PBar(QWidget):
         self.pbar.setValue(int(msg))
         if self.pbar.value() == 99:
             self.pbar.setValue(0)
-
-
