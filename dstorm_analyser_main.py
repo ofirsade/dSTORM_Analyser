@@ -204,10 +204,12 @@ class MainWindow(QMainWindow):
 ##        if self.output_dir != os.path.abspath(os.path.dirname(__file__)):
         if self.output_dir_set:
             htmls_path, csvs_path = self.set_output_paths(True)
+            
             dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config,
-                                     self.gen_files, self.gen_plots, self.open_plots, self.pbar)
+                                     self.gen_files, self.gen_plots, self.open_plots)
 ##            self.thread = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
 ##            self.thread.progress.connect(self.update_progress())
+
             self.msg = QMessageBox()
             self.msg.setText("The results of your scan(s) will be saved to the selected directory")
             self.msg.setInformativeText(str(self.output_dir))
@@ -219,10 +221,12 @@ class MainWindow(QMainWindow):
         else:
 ##            self.output_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "Results")
             htmls_path, csvs_path = self.set_output_paths(False)
+            
             dataset = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config,
-                                     self.gen_files, self.gen_plots, self.open_plots, self.pbar)
+                                     self.gen_files, self.gen_plots, self.open_plots)
 ##            self.thread = dstorm_dataset(self.path, csvs_path, htmls_path, self.selected_files, self.algs, self.config, self.open_plots, self.pbar)
 ##            self.thread.progress.connect(self.update_progress())
+
             self.msg = QMessageBox()
             self.msg.setText("The results of your scan(s) will be saved to the default directory")
             self.msg.setInformativeText(str(self.output_path))
@@ -235,6 +239,7 @@ class MainWindow(QMainWindow):
             if a in dataset.clust_res.keys():
                 img_props = (dataset.clust_res[a])[0]
                 cluster_props = (dataset.clust_res[a])[1]
+                print('Image:\n', img_props)
 
                 now = datetime.now() # datetime object containing current date and time
                 dt_string = now.strftime("%Y.%m.%d %H_%M_%S")
@@ -244,7 +249,7 @@ class MainWindow(QMainWindow):
                 elif a == 'HDBSCAN':
                     names = ['Photon Count', 'X Precision', '2D Density Threshold',
                              '3D Density Threshold', 'Min Points', 'Epsilon', 'Min Samples',
-                             'Extracting Algorithm', 'Selection Alpha']
+                             'Extracting Algorithm', 'Selection Alpha', 'Min Cluster Size']
                 elif a == 'FOCAL':
                     names = ['Photon Count', 'X Precision', '2D Density Threshold',
                              '3D Density Threshold', 'Sigma', 'MinL', 'minC', 'minPC']
@@ -264,6 +269,8 @@ class MainWindow(QMainWindow):
                 if self.gen_files:
                     img_props.to_excel(img_path)
                     cluster_props.to_excel(cluster_path)
+        self.msg.show()
+##        self.pbar.reset()
 
 
 ##    def update_progress(self, progress):
@@ -321,7 +328,8 @@ class MainWindow(QMainWindow):
                                           int(self.p2_epsilon.text()),
                                           int(self.p2_min_samples.text()),
                                           str(self.p2_extracting_alg.text()),
-                                          float(self.p2_selection_alpha.text())]
+                                          float(self.p2_selection_alpha.text()),
+                                          int(self.p2_min_cluster_size.text())]
                 if self.p2_upca.isChecked():
 ##                    self.p2_stdev_num = QLineEdit('1.0', self)
                     self.p2_stdev_num.setToolTip('PCA noise reduction standard deviations')
@@ -358,45 +366,16 @@ class MainWindow(QMainWindow):
         # Creating progress bar
 ##        self.pbar = QProgressBar(self)
 ##        self.pbar.setValue(0)
-##        self.pbar.setGeometry(30, 40, 200, 25)
+####        self.pbar.setGeometry(30, 40, 200, 25)
 ##        self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
-        self.pbar = QStatusBar()
-##        self.setStatusBar(self.pbar)
-##        self.pbar.setGeometry(30, 40, 200, 25)
-##        self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
+####        self.pbar = QStatusBar()
+####        self.setStatusBar(self.pbar)
+####        self.pbar.setGeometry(30, 40, 200, 25)
+####        self.overall_layout.addWidget(self.pbar, 15, 0, 1, 5)
         
 
-##    def onStateChanged(self):
-##
-##        if self.cb1.isChecked():
-##            if self.db.isChecked():
-####                if self.rn1 == 6:
-##                    self.p1_stdev_num = QLineEdit('1.0', self)
-##                    self.p1_layout.addRow("PCA Stdev",self.p1_stdev_num)
-##
-##            if self.hb.isChecked():
-####                if self.rn2 == 9:
-##                    self.p2_stdev_num = QLineEdit('1.0', self)
-##                    self.p2_layout.addRow("PCA Stdev", self.p2_stdev_num)
-##
-##            if self.fb.isChecked():
-####                if self.rn3 == 8:
-##                    self.p3_stdev_num = QLineEdit('1.0', self)
-##                    self.p3_layout.addRow("PCA Stdev", self.p3_stdev_num)
-##
-##        else:
-##            if self.db.isChecked():
-####                self.rn1 = 6
-##                self.p1_layout.removeRow(self.p1_stdev_num)
-##                self.p1_stdev_num = None
-##            if self.hb.isChecked():
-####                self.rn2 = 9
-##                self.p2_layout.removeRow(self.p2_stdev_num)
-##                self.p2_stdev_num = None
-##            if self.fb.isChecked():
-####                self.rn3 = 8
-##                self.p3_layout.removeRow(self.p3_stdev_num)
-##                self.p3_stdev_num = None
+    def update_progress(self, val):
+        self.pbar.setValue(val)
                 
 
     def onStateChangedDB(self):
@@ -415,15 +394,15 @@ class MainWindow(QMainWindow):
     def onStateChangedHB(self):
 
         if self.hb.isChecked():
-            if self.p2_upca.isChecked() & (self.rn2 == 9):
+            if self.p2_upca.isChecked() & (self.rn2 == 10):
                 self.p2_stdev_num = QLineEdit('1.0', self)
                 self.p2_layout.addRow("PCA Stdev", self.p2_stdev_num)
-                self.rn2 = 10
+                self.rn2 = 11
             else:
-                if self.rn2 == 10:
+                if self.rn2 == 11:
                     self.p2_layout.removeRow(self.p2_stdev_num)
                     self.p2_stdev_num = None
-                    self.rn2 = 9
+                    self.rn2 = 10
 
     def onStateChangedFB(self):
 
@@ -506,7 +485,7 @@ class MainWindow(QMainWindow):
                 if 'HDBSCAN' not in self.checked_cbs:
                     self.checked_cbs.append('HDBSCAN')
                     print(self.checked_cbs)
-                self.rn2 = 9
+                self.rn2 = 10
                 self.p2_photoncount = QLineEdit('1000', self)
                 self.p2_xprecision = QLineEdit('100', self)
                 self.p2_density_threshold2 = QLineEdit('0.0', self)
@@ -516,6 +495,7 @@ class MainWindow(QMainWindow):
                 self.p2_min_samples = QLineEdit('22', self)
                 self.p2_extracting_alg = QLineEdit('leaf', self)
                 self.p2_selection_alpha = QLineEdit('1.0', self)
+                self.p2_min_cluster_size = QLineEdit('22', self)
                 self.p2_upca = QCheckBox('')
                 self.p2_upca.setChecked(False)
                 self.p2_upca.stateChanged.connect(self.onStateChangedHB)
@@ -530,6 +510,7 @@ class MainWindow(QMainWindow):
                 self.p2_min_samples.setToolTip('A measure of how conservative the clustering is.\nThe larger the value,\nmore points will be declared as noise,\nand clusters will be restricted to progressively denser areas.')
                 self.p2_extracting_alg.setToolTip('Determines how HDBSCAN selects flat clusters from the cluster tree hierarchy\nOptions are: eom or leaf')
                 self.p2_selection_alpha.setToolTip('I suggest not to change this parameter!\nIncreasing alpha will make the clustering more conservative,\nbut on a much tighter scale')
+                self.p2_min_cluster_size.setToolTip('Only clusters containing more localisations than MinClusterSize will be considered')
                 self.p2_upca.setToolTip('PCA noise reduction standard deviations')
                 
                 self.p2 = QWidget()
@@ -542,6 +523,7 @@ class MainWindow(QMainWindow):
                 self.p2_layout.addRow("MinSamples", self.p2_min_samples)
                 self.p2_layout.addRow("Extracting Algorithm",self.p2_extracting_alg)
                 self.p2_layout.addRow("Selection Alpha", self.p2_selection_alpha)
+                self.p2_layout.addRow('MinClusterSize', self.p2_min_cluster_size)
                 self.p2_layout.addRow("2D Density Threshold",self.p2_density_threshold2)
                 self.p2_layout.addRow("3D Density Threshold",self.p2_density_threshold3)
                 self.p2_layout.addRow("Min Photon-count",self.p2_photoncount)
