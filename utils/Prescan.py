@@ -8,7 +8,7 @@ from multiprocessing.pool import ThreadPool as Pool
 from traceback import format_exc
 from pandas.io.parsers import read_csv
 from datetime import datetime
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QWidget, QPushButton, QProgressBar, QVBoxLayout, QApplication
 from pathlib import Path
 
@@ -33,7 +33,7 @@ import sys
 class dstorm_dataset(data.Dataset):
     
     def __init__(self, input_path, csvs_path, htmls_path, selected_files, algs, config,
-                 gen_files, gen_plots, open_plots, pbar, workers = 8):
+                 gen_files, gen_plots, open_plots, workers = 8):# pbar, workers = 8):
         '''
         @params:
             input_path - str, path to file/files/directory
@@ -44,8 +44,9 @@ class dstorm_dataset(data.Dataset):
             gen_plots - bool, if True: generate and save htmls of clustering plots, else don't
             open_plots - bool, if True: open plots when ready, elif False: only save the plots to output directory
             pw - PlotWindow, empty window to show results
-            pbar - progress bar
+##            pbar - progress bar
         '''
+##        self.popup = PopUpProgressB()
         fileslist = []
         self.input_path = input_path[1]
         self.pc_th = 0.0
@@ -53,11 +54,13 @@ class dstorm_dataset(data.Dataset):
         self.clust_res = {}
         self.error = None
         self.complete = False
+##        l = 0
 
         for alg in algs:
             if alg[1] == True:
                 self.pc_th = (config.get(str(alg[0])))[0] # Set the minimum photon-count threshold
                 self.px_th = (config.get(str(alg[0])))[1] # Set the maximum x-precision threshold
+##                l += 1
 
         if input_path[0] == 'files':
             self.input_path = self.input_path[0]
@@ -77,6 +80,9 @@ class dstorm_dataset(data.Dataset):
 ##            raise ValueError(f'{self.path} input path is NOT a path to a directory or .csv file')
             self.error = "The input path is NOT a path to a directory or .csv file!"
 
+##        fl = len(fileslist) * l * 100
+##        print('Number of Analyses: ', fl)
+
         pool = Pool(workers)
         
         try:
@@ -86,15 +92,12 @@ class dstorm_dataset(data.Dataset):
                 for r in result:
                     df_rows.append(r)
                     
-##                    pb = PBar()
-##                    pb.show()
-                    
         finally:
             pool.close()
             pool.terminate()
 
         self.orig_df = pd.DataFrame(df_rows)
-        
+        j = 0
         if self.orig_df is not None:
             self.data = self.orig_df.to_dict(orient = 'records')
             self.indices = self.orig_df.index.values
@@ -115,7 +118,7 @@ class dstorm_dataset(data.Dataset):
                 elif alg[0] == 'FOCAL':
                     foc = FOCAL_dataset(self.data, params, csvs_path, htmls_path, gen_files, gen_plots, open_plots)
                     self.clust_res[alg[0]] = [foc.img_props, foc.cluster_props]
-##                pbar.setValue(i)
+
         self.complete = True
 
         
@@ -299,6 +302,7 @@ class HDBSCAN_dataset(dstorm_dataset):
         self.min_samples = params[6]
         self.extracting_alg = params[7]
         self.alpha = params[8]
+        self.min_cluster_size = params[9]
 ##        self.output_path = output_path
         self.csvs_path = csvs_path
         self.htmls_path = htmls_path
@@ -347,7 +351,8 @@ class HDBSCAN_dataset(dstorm_dataset):
             fname = filename,
             pca_stddev = self.pca_stddev,
             d2_th = self.d2_th,
-            d3_th = self.d3_th
+            d3_th = self.d3_th,
+            min_cluster_size = self.min_cluster_size
             )
 
         if len(img_props.index) > 0:
@@ -502,6 +507,60 @@ class FOCAL_dataset(dstorm_dataset):
 
         else:
             print('No clusters were found in FOCAL!')
+
+
+class Worker(QObject):
+    finished = pyqtSignal()
+    intReady = pyqtSignal(int)
+
+    @pyqtSlot()
+    def proc_counter(self):  # A slot takes no params
+        for i in range(1, 100):
+            time.sleep(0.1)
+            self.intReady.emit(i)
+
+        self.finished.emit()
+
+
+##class PopUpProgressB(QWidget):
+##
+##    def __init__(self):
+##        super().__init__()
+##        self.pbar = QProgressBar(self)
+##        self.pbar.setGeometry(30, 40, 500, 75)
+##        self.layout = QVBoxLayout()
+##        self.layout.addWidget(self.pbar)
+##        self.setLayout(self.layout)
+##        self.setGeometry(300, 300, 550, 100)
+##        self.setWindowTitle('Progress Bar')
+####        self.statusBar().addPermanentWidget(self.pbar)
+##        self.show()
+##
+##        self.running()
+##
+####        self.obj = Worker()
+####        self.thread = QThread()
+####        self.obj.intReady.connect(self.on_count_changed)
+####        self.obj.moveToThread(self.thread)
+####        self.obj.finished.connect(self.thread.quit)
+####        self.thread.started.connect(self.obj.proc_counter)
+####        self.thread.start()
+##
+##    def on_count_changed(self, value):
+##        self.pbar.setValue(value)
+##
+##    def running(self):
+##        self.completed = 0
+####        self.statusBar().showMessage("downloading ...", 0)
+## 
+##        while self.completed < 100:
+##            self.completed += 0.005
+##            self.pbar.setValue(int(self.completed))
+##             
+##            if self.pbar.value() == 100:
+####                self.statusBar().showMessage("completed", 0)
+##                self.pbar.hide()
+
 
 
 class Thread(QThread):
