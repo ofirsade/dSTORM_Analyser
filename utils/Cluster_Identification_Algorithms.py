@@ -296,7 +296,8 @@ def hdbscan_cluster_and_group(xyz,
                               fname = '',
                               pca_stddev = None,
                               d2_th = 0.0,
-                              d3_th = 0.0):
+                              d3_th = 0.0,
+                              min_cluster_size = 22):
     """Use DBSCAN to cluster a given list of points, then bound them by rects.
 
         :param xyz: list of lists where each inner list represents a point (row_x, col_y).
@@ -343,11 +344,17 @@ def hdbscan_cluster_and_group(xyz,
                 if l != -1:
                     cluster_df = xyz.loc[xyz['Label'] == l]
                     cluster = cluster_df[['x', 'y', 'z']].to_numpy()
-                    denoised_cluster, dropped_noise = pca_outliers_and_axes(cluster, pca_stddev)
-                    denoised_cluster_df = pd.DataFrame(denoised_cluster, columns = ['x', 'y', 'z'])
-                    dropped_noise_df = pd.DataFrame(dropped_noise, columns = ['x', 'y', 'z'])
-                    denoised_cluster_df['Label'] = [l]*len(denoised_cluster_df.index)
-                    dropped_noise_df['Label'] = [-1]*len(dropped_noise_df.index)
+                    cluster_size = len(cluster)
+                    if cluster_size <= min_cluster_size:
+                        denoised_cluster_df = pd.DataFrame()
+                        dropped_noise_df = cluster_df
+                        dropped_noise_df['Label'] = [-1]*cluster_size
+                    else:
+                        denoised_cluster, dropped_noise = pca_outliers_and_axes(cluster, pca_stddev)
+                        denoised_cluster_df = pd.DataFrame(denoised_cluster, columns = ['x', 'y', 'z'])
+                        dropped_noise_df = pd.DataFrame(dropped_noise, columns = ['x', 'y', 'z'])
+                        denoised_cluster_df['Label'] = [l]*len(denoised_cluster_df.index)
+                        dropped_noise_df['Label'] = [-1]*len(dropped_noise_df.index)
                     data = pd.concat([data, denoised_cluster_df, dropped_noise_df], axis = 0)
             xyz_pca = pd.concat([data, orig_noise])
             ul = set(xyz_pca['Label'].values.tolist())
@@ -503,4 +510,3 @@ def focal_cluster_and_group(xyz,
 
     except BaseException as be:
         print(be)
-    
