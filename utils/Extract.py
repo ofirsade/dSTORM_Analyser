@@ -13,6 +13,7 @@ import functools
 import ast
 ##from sklearn.decomposition import PCA
 import sys
+from scipy.spatial.distance import cdist
 
 
 def pca_outliers_and_axes(np_array, stddev_factor): # This method was originally written by Itay Talpir 
@@ -205,6 +206,78 @@ def calc_polygon_radius(clusters):
 
     return mean_radius, median_radius, radii
 
+def calc_cluster_hw(cluster):
+
+    points_3d = np.array([point[:3] for point in cluster])
+    hull = scipy.spatial.ConvexHull(points_3d)
+    corners = list(set(functools.reduce(lambda x,y: x+y,
+                                        [[(a,b,c) for a,b,c in x] for x in points_3d[hull.simplices]])))
+    hdist = cdist(corners, corners, metric='euclidean')
+    # Get the farthest apart points
+    bestpair = np.unravel_index(hdist.argmax(), hdist.shape)
+    bpair = [corners[bestpair[0]],corners[bestpair[1]]]
+    print(bpair)
+
+    p1 = bpair[0]
+    p2 = bpair[1]
+
+    x_dist = abs(p1[0]-p2[0])
+    y_dist = abs(p1[1]-p2[1])
+
+    if x_dist > y_dist:
+        major_axis = 0
+        length = x_dist
+    else:
+        major_axis = 1
+        length = y_dist
+
+    lengths.append(length)
+    inc_size = length / 3
+
+    inc0 = min(p1[major_axis], p2[major_axis])
+    inc1 = inc0 + inc_size
+    inc2 = inc1 + inc_size
+    inc3 = max(p1[major_axis], p2[major_axis])
+    incs = [inc0, inc1, inc2, inc3]
+    minor_axis = 1-major_axis
+
+    inc0_points = np.array([p for p in corners if p[major_axis] <= inc1])
+    inc1_points = np.array([p for p in corners if all((p[major_axis] > inc1) & (corners[major_axis] <= inc2))])
+    inc2_points = np.array([p for p in corners if all((p[major_axis] > inc2) & (corners[major_axis] <= inc3))])
+
+    inc0_max_idx = np.argmax(inc0_points, axis = 0)
+    inc0_min_idx = np.argmin(inc0_points, axis = 0)
+
+    inc1_max_idx = np.argmax(inc1_points, axis = 0)
+    inc1_min_idx = np.argmin(inc1_points, axis = 0)
+
+    inc2_max_idx = np.argmax(inc2_points, axis = 0)
+    inc2_min_idx = np.argmin(inc2_points, axis = 0)
+
+    inc0_max_minora = (inc0_points[inc0_max_idx])[minor_axis]
+    inc0_min_minora = (inc0_points[inc0_min_idx])[minor_axis]
+
+    width0 = abs(inc0_max_minora[minor_axis] - inc0_min_minora[minor_axis])
+
+    inc1_max_minora = (inc1_points[inc1_max_idx])[minor_axis]
+    inc1_min_minora = (inc1_points[inc1_min_idx])[minor_axis]
+
+    width1 = abs(inc1_max_minora[minor_axis] - inc1_min_minora[minor_axis])
+
+    inc2_max_minora = (inc2_points[inc2_max_idx])[minor_axis]
+    inc2_min_minora = (inc2_points[inc2_min_idx])[minor_axis]
+
+    width2 = abs(inc2_max_minora[minor_axis] - inc2_min_minora[minor_axis])
+
+    width = statistics.mean(width0, width1, width2)
+
+    print('\nCluster Widths:\n', width0, '\n', width1, '\n', width2)
+
+    return length, width
+        
+        
+        
+
 def calc_all(clusters, d2_th, d3_th):
     """
     Calculates the volume of the convex hull containing each cluster.
@@ -219,9 +292,9 @@ def calc_all(clusters, d2_th, d3_th):
     dens_2d_list = []
     dens_3d_list = []
     radii_list = []
-    xs_list = []
-    ys_list = []
-    zs_list = []
+    lengths_list = []
+    widths_list = []
+##    zs_list = []
     mean_vol = None
     med_vol = None
     mean_locs = None
@@ -282,31 +355,36 @@ def calc_all(clusters, d2_th, d3_th):
             loc_list.append(loc_num)
             radii_list.append(radius)
 
-            # Calculate maximal distances in x,y,z axes
-            corners = list(set(functools.reduce(lambda x,y: x+y,
-                                                [[(a,b,c) for a,b,c in x] for x in points_3d[hull.simplices]])))
-            mx_x_dist = 0
-            mx_y_dist = 0
-            mx_z_dist = 0
-            l = len(corners)
+##            # Calculate maximal distances in x,y,z axes
+##            corners = list(set(functools.reduce(lambda x,y: x+y,
+##                                                [[(a,b,c) for a,b,c in x] for x in points_3d[hull.simplices]])))
+##            mx_x_dist = 0
+##            mx_y_dist = 0
+##            mx_z_dist = 0
+##            l = len(corners)
+##
+##            for p1 in corners:
+##                for p2 in corners:
+##                    if p1 != p2:
+##                        x_dist = abs(p2[0]-p1[0])
+##                        if x_dist >= mx_x_dist:
+##                            mx_x_dist = x_dist
+##                        y_dist = abs(p2[1]-p1[1])
+##                        if y_dist >= mx_y_dist:
+##                            mx_y_dist = y_dist
+##                        z_dist = abs(p2[2]-p1[2])
+##                        if z_dist >= mx_z_dist:
+##                            mx_z_dist = z_dist
+##            xs_list.append(mx_x_dist)
+##            ys_list.append(mx_y_dist)
+##            zs_list.append(mx_z_dist)
 
-            for p1 in corners:
-                for p2 in corners:
-                    if p1 != p2:
-                        x_dist = abs(p2[0]-p1[0])
-                        if x_dist >= mx_x_dist:
-                            mx_x_dist = x_dist
-                        y_dist = abs(p2[1]-p1[1])
-                        if y_dist >= mx_y_dist:
-                            mx_y_dist = y_dist
-                        z_dist = abs(p2[2]-p1[2])
-                        if z_dist >= mx_z_dist:
-                            mx_z_dist = z_dist
-            xs_list.append(mx_x_dist)
-            ys_list.append(mx_y_dist)
-            zs_list.append(mx_z_dist)
+            # Calculate maximal distances in x,y axes
+            length, width = calc_cluster_hw(cluster)
+            lengths_list.append(length)
+            width_list.append(width)
             
-            clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, mx_x_dist, mx_y_dist, mx_z_dist, cluster]
+            clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, length, width, cluster]
             gen_lst.append(clst_lst)
             cluster_props_dict[label] = clst_lst[1:]
 
@@ -480,12 +558,10 @@ def extract_AP(clusters, d2_th, d3_th):
     clstr_props_df['Radius'] = [item[3] for item in gen_list]
     clstr_props_df['2D Density'] = [item[4] for item in gen_list]
     clstr_props_df['3D Density'] = [item[5] for item in gen_list]
-    clstr_props_df['Maximal X Distance'] = [item[6] for item in gen_list]
-    clstr_props_df['Maximal Y Distance'] = [item[7] for item in gen_list]
-    clstr_props_df['Maximal Z Distance'] = [item[8] for item in gen_list]
-    clstr_props_df['Cluster'] = [item[9] for item in gen_list]
+    clstr_props_df['Length'] = [item[6] for item in gen_list]
+    clstr_props_df['Width'] = [item[7] for item in gen_list]
+    clstr_props_df['Cluster'] = [item[8] for item in gen_list]
     
 ##    print(clstr_props_df)
     
     return img_props_df, clstr_props_df, cluster_props_dict, noise
-    
