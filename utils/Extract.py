@@ -272,8 +272,11 @@ def calc_cluster_hw(cluster):
         inc2_min_minora = (inc2_points[inc2_min_idx])[minor_axis]
 
         width2 = abs(inc2_max_minora[minor_axis] - inc2_min_minora[minor_axis])
-    widths = [width0, width1, width2]
-    widths.remove(-1)
+    tmp_widths = [width0, width1, width2]
+    widths = []
+    for width in tmp_widths:
+        if width != -1:
+            widths.append(width)
 
     width = statistics.mean(widths)
 
