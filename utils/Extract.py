@@ -11,13 +11,12 @@ import os
 import statistics
 import functools
 import ast
-from sklearn.decomposition import PCA
+##from sklearn.decomposition import PCA
 import sys
 
 
-def pca_outliers_and_axes(np_array, stddev_factor):
+def pca_outliers_and_axes(np_array, stddev_factor): # This method was originally written by Itay Talpir 
     try:
-##        print('PCA Line 20: ', len(np_array))
         points_mat = np.matrix(np_array)
         transposed_mat = points_mat.T
         dimensions_mean = [sum(column) / len(column) for column in transposed_mat.tolist()]
@@ -33,7 +32,7 @@ def pca_outliers_and_axes(np_array, stddev_factor):
         ### sort eigen values descending, and create a feature vector accordingly
         eigen_values.sort(reverse = True, key = lambda a:a[0])
 
-        ### returns a transposed matrix of eigen vectors!
+        ### returns a transposed matrix of eigen vectors
         feature_vec = np.stack([eigen_vectors[:,i] for e, i in eigen_values])
 
         transformed_data = feature_vec * normed_transposed_mat
@@ -206,7 +205,6 @@ def calc_polygon_radius(clusters):
 
     return mean_radius, median_radius, radii
 
-
 def calc_all(clusters, d2_th, d3_th):
     """
     Calculates the volume of the convex hull containing each cluster.
@@ -221,6 +219,9 @@ def calc_all(clusters, d2_th, d3_th):
     dens_2d_list = []
     dens_3d_list = []
     radii_list = []
+    xs_list = []
+    ys_list = []
+    zs_list = []
     mean_vol = None
     med_vol = None
     mean_locs = None
@@ -258,8 +259,30 @@ def calc_all(clusters, d2_th, d3_th):
                 print('Cluster ', label, ' was dropped due to 2D density < ', d2_th)
                 continue
 
+            # Calculate maximal distances in x,y,z axes
+            mx_x_dist = 0
+            mx_y_dist = 0
+            mx_z_dist = 0
+            l = len(corners)
+
+            for p1 in corners:
+                for p2 in corners:
+                    if p1 != p2:
+                        x_dist = abs(p2[0]-p1[0])
+                        if x_dist >= mx_x_dist:
+                            mx_x_dist = x_dist
+                        y_dist = abs(p2[1]-p1[1])
+                        if y_dist >= mx_y_dist:
+                            mx_y_dist = y_dist
+                        z_dist = abs(p2[2]-p1[2])
+                        if z_dist >= mx_z_dist:
+                            mx_z_dist = z_dist
+            xs_list.append(mx_x_dist)
+            ys_list.append(mx_y_dist)
+            zs_list.append(mx_z_dist)
+
             # Calculate 2D radius
-            hull = ConvexHull(points_2d)
+##            hull = ConvexHull(points_2d)
             perimeter = hull.area
             size = hull.volume
             radius = 2 * size / perimeter
@@ -281,9 +304,9 @@ def calc_all(clusters, d2_th, d3_th):
             loc_list.append(loc_num)
             radii_list.append(radius)
             
-            clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, cluster]
+            clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, mx_x_dist, mx_y_dist, mx_z_dist, cluster]
             gen_lst.append(clst_lst)
-            cluster_props_dict[label] = clst_lst[1:6]
+            cluster_props_dict[label] = clst_lst[1:]
 
         if len(vols_list) != 0:   
             mean_vol = statistics.mean(vols_list)
@@ -455,10 +478,12 @@ def extract_AP(clusters, d2_th, d3_th):
     clstr_props_df['Radius'] = [item[3] for item in gen_list]
     clstr_props_df['2D Density'] = [item[4] for item in gen_list]
     clstr_props_df['3D Density'] = [item[5] for item in gen_list]
-    clstr_props_df['Cluster'] = [item[6] for item in gen_list]
+    clstr_props_df['Maximal X Distance'] = [item[6] for item in gen_list]
+    clstr_props_df['Maximal Y Distance'] = [item[7] for item in gen_list]
+    clstr_props_df['Maximal Z Distance'] = [item[8] for item in gen_list]
+    clstr_props_df['Cluster'] = [item[9] for item in gen_list]
     
 ##    print(clstr_props_df)
     
     return img_props_df, clstr_props_df, cluster_props_dict, noise
-    
     
