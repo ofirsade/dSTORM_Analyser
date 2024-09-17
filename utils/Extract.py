@@ -245,31 +245,37 @@ def calc_cluster_hw(cluster):
     inc1_points = np.array([p for p in corners if all((p[major_axis] > inc1) & (corners[major_axis] <= inc2))])
     inc2_points = np.array([p for p in corners if all((p[major_axis] > inc2) & (corners[major_axis] <= inc3))])
 
-    inc0_max_idx = np.argmax(inc0_points, axis = 0)
-    inc0_min_idx = np.argmin(inc0_points, axis = 0)
+    width0 = -1
+    width1 = -1
+    width2 = -1
+    if len(inc0_points) > 0:
+        inc0_max_idx = np.argmax(inc0_points, axis = 0)
+        inc0_min_idx = np.argmin(inc0_points, axis = 0)
 
-    inc1_max_idx = np.argmax(inc1_points, axis = 0)
-    inc1_min_idx = np.argmin(inc1_points, axis = 0)
+        inc0_max_minora = (inc0_points[inc0_max_idx])[minor_axis]
+        inc0_min_minora = (inc0_points[inc0_min_idx])[minor_axis]
 
-    inc2_max_idx = np.argmax(inc2_points, axis = 0)
-    inc2_min_idx = np.argmin(inc2_points, axis = 0)
+        width0 = abs(inc0_max_minora[minor_axis] - inc0_min_minora[minor_axis])
+    if len(inc1_points) > 0:
+        inc1_max_idx = np.argmax(inc1_points, axis = 0)
+        inc1_min_idx = np.argmin(inc1_points, axis = 0)
 
-    inc0_max_minora = (inc0_points[inc0_max_idx])[minor_axis]
-    inc0_min_minora = (inc0_points[inc0_min_idx])[minor_axis]
+        inc1_max_minora = (inc1_points[inc1_max_idx])[minor_axis]
+        inc1_min_minora = (inc1_points[inc1_min_idx])[minor_axis]
 
-    width0 = abs(inc0_max_minora[minor_axis] - inc0_min_minora[minor_axis])
+        width1 = abs(inc1_max_minora[minor_axis] - inc1_min_minora[minor_axis])
+    if len(inc2_points) > 0:
+        inc2_max_idx = np.argmax(inc2_points, axis = 0)
+        inc2_min_idx = np.argmin(inc2_points, axis = 0)
 
-    inc1_max_minora = (inc1_points[inc1_max_idx])[minor_axis]
-    inc1_min_minora = (inc1_points[inc1_min_idx])[minor_axis]
+        inc2_max_minora = (inc2_points[inc2_max_idx])[minor_axis]
+        inc2_min_minora = (inc2_points[inc2_min_idx])[minor_axis]
 
-    width1 = abs(inc1_max_minora[minor_axis] - inc1_min_minora[minor_axis])
+        width2 = abs(inc2_max_minora[minor_axis] - inc2_min_minora[minor_axis])
+    widths = [width0, width1, width2]
+    widths.remove(-1)
 
-    inc2_max_minora = (inc2_points[inc2_max_idx])[minor_axis]
-    inc2_min_minora = (inc2_points[inc2_min_idx])[minor_axis]
-
-    width2 = abs(inc2_max_minora[minor_axis] - inc2_min_minora[minor_axis])
-
-    width = statistics.mean(width0, width1, width2)
+    width = statistics.mean(widths)
 
     print('\nCluster Widths:\n', width0, '\n', width1, '\n', width2)
 
