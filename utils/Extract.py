@@ -259,28 +259,6 @@ def calc_all(clusters, d2_th, d3_th):
                 print('Cluster ', label, ' was dropped due to 2D density < ', d2_th)
                 continue
 
-            # Calculate maximal distances in x,y,z axes
-            mx_x_dist = 0
-            mx_y_dist = 0
-            mx_z_dist = 0
-            l = len(corners)
-
-            for p1 in corners:
-                for p2 in corners:
-                    if p1 != p2:
-                        x_dist = abs(p2[0]-p1[0])
-                        if x_dist >= mx_x_dist:
-                            mx_x_dist = x_dist
-                        y_dist = abs(p2[1]-p1[1])
-                        if y_dist >= mx_y_dist:
-                            mx_y_dist = y_dist
-                        z_dist = abs(p2[2]-p1[2])
-                        if z_dist >= mx_z_dist:
-                            mx_z_dist = z_dist
-            xs_list.append(mx_x_dist)
-            ys_list.append(mx_y_dist)
-            zs_list.append(mx_z_dist)
-
             # Calculate 2D radius
 ##            hull = ConvexHull(points_2d)
             perimeter = hull.area
@@ -303,6 +281,30 @@ def calc_all(clusters, d2_th, d3_th):
             vols_list.append(volume)
             loc_list.append(loc_num)
             radii_list.append(radius)
+
+            # Calculate maximal distances in x,y,z axes
+            corners = list(set(functools.reduce(lambda x,y: x+y,
+                                                [[(a,b,c) for a,b,c in x] for x in points_3d[hull.simplices]])))
+            mx_x_dist = 0
+            mx_y_dist = 0
+            mx_z_dist = 0
+            l = len(corners)
+
+            for p1 in corners:
+                for p2 in corners:
+                    if p1 != p2:
+                        x_dist = abs(p2[0]-p1[0])
+                        if x_dist >= mx_x_dist:
+                            mx_x_dist = x_dist
+                        y_dist = abs(p2[1]-p1[1])
+                        if y_dist >= mx_y_dist:
+                            mx_y_dist = y_dist
+                        z_dist = abs(p2[2]-p1[2])
+                        if z_dist >= mx_z_dist:
+                            mx_z_dist = z_dist
+            xs_list.append(mx_x_dist)
+            ys_list.append(mx_y_dist)
+            zs_list.append(mx_z_dist)
             
             clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, mx_x_dist, mx_y_dist, mx_z_dist, cluster]
             gen_lst.append(clst_lst)
