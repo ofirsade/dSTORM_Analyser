@@ -231,23 +231,33 @@ def calc_cluster_hw(cluster):
         major_axis = 1
         length = y_dist
 
-    lengths.append(length)
-    inc_size = length / 3
+    inc_size = length / 4
 
     inc0 = min(p1[major_axis], p2[major_axis])
     inc1 = inc0 + inc_size
     inc2 = inc1 + inc_size
-    inc3 = max(p1[major_axis], p2[major_axis])
-    incs = [inc0, inc1, inc2, inc3]
+    inc3 = inc2 + inc_size
+    inc4 = max(p1[major_axis], p2[major_axis])
+    incs = [inc0, inc1, inc2, inc3, inc4]
+
+    # 2D Minor Axis (X or Y)
     minor_axis = 1-major_axis
 
     inc0_points = np.array([p for p in corners if p[major_axis] <= inc1])
-    inc1_points = np.array([p for p in corners if all((p[major_axis] > inc1) & (corners[major_axis] <= inc2))])
-    inc2_points = np.array([p for p in corners if all((p[major_axis] > inc2) & (corners[major_axis] <= inc3))])
+    inc1_points = np.array([p for p in corners if inc1 < p[major_axis] <= inc2])
+    inc2_points = np.array([p for p in corners if inc2 < p[major_axis] <= inc3])
+    inc3_points = np.array([p for p in corners if inc3 < p[major_axis] <= inc4])
 
     width0 = -1
     width1 = -1
     width2 = -1
+    width3 = -1
+
+    depth0 = -1
+    depth1 = -1
+    depth2 = -1
+    depth3 = -1
+    
     if len(inc0_points) > 0:
         inc0_max_idx = np.argmax(inc0_points, axis = 0)
         inc0_min_idx = np.argmin(inc0_points, axis = 0)
@@ -255,7 +265,12 @@ def calc_cluster_hw(cluster):
         inc0_max_minora = (inc0_points[inc0_max_idx])[minor_axis]
         inc0_min_minora = (inc0_points[inc0_min_idx])[minor_axis]
 
+        inc0_max_za = (inc0_points[inc0_max_idx])[2]
+        inc0_min_za = (inc0_points[inc0_min_idx])[2]
+
         width0 = abs(inc0_max_minora[minor_axis] - inc0_min_minora[minor_axis])
+        depth0 = abs(inc0_max_za[2] - inc0_min_za[2])
+        
     if len(inc1_points) > 0:
         inc1_max_idx = np.argmax(inc1_points, axis = 0)
         inc1_min_idx = np.argmin(inc1_points, axis = 0)
@@ -263,7 +278,12 @@ def calc_cluster_hw(cluster):
         inc1_max_minora = (inc1_points[inc1_max_idx])[minor_axis]
         inc1_min_minora = (inc1_points[inc1_min_idx])[minor_axis]
 
+        inc1_max_za = (inc1_points[inc1_max_idx])[2]
+        inc1_min_za = (inc1_points[inc1_min_idx])[2]
+
         width1 = abs(inc1_max_minora[minor_axis] - inc1_min_minora[minor_axis])
+        depth1 = abs(inc1_max_za[2] - inc1_min_za[2])
+        
     if len(inc2_points) > 0:
         inc2_max_idx = np.argmax(inc2_points, axis = 0)
         inc2_min_idx = np.argmin(inc2_points, axis = 0)
@@ -271,18 +291,43 @@ def calc_cluster_hw(cluster):
         inc2_max_minora = (inc2_points[inc2_max_idx])[minor_axis]
         inc2_min_minora = (inc2_points[inc2_min_idx])[minor_axis]
 
+        inc2_max_za = (inc2_points[inc2_max_idx])[2]
+        inc2_min_za = (inc2_points[inc2_min_idx])[2]
+
         width2 = abs(inc2_max_minora[minor_axis] - inc2_min_minora[minor_axis])
-    tmp_widths = [width0, width1, width2]
+        depth2 = abs(inc2_max_za[2] - inc2_min_za[2])
+
+    if len(inc3_points) > 0:
+        inc3_max_idx = np.argmax(inc3_points, axis = 0)
+        inc3_min_idx = np.argmin(inc3_points, axis = 0)
+
+        inc3_max_minora = (inc3_points[inc3_max_idx])[minor_axis]
+        inc3_min_minora = (inc3_points[inc3_min_idx])[minor_axis]
+
+        inc3_max_za = (inc3_points[inc3_max_idx])[2]
+        inc3_min_za = (inc3_points[inc3_min_idx])[2]
+
+        width3 = abs(inc3_max_minora[minor_axis] - inc3_min_minora[minor_axis])
+        depth3 = abs(inc3_max_za[2] - inc3_min_za[2])
+
+        
+    tmp_widths = [width0, width1, width2, width3]
     widths = []
     for width in tmp_widths:
-        if width != -1:
+        if width > 0:
             widths.append(width)
-
     width = statistics.mean(widths)
 
-    print('\nCluster Widths:\n', width0, '\n', width1, '\n', width2)
+    print('\nCluster Widths:\n', width0, '\n', width1, '\n', width2, '\n', width3)
 
-    return length, width
+    tmp_depths = [depth0, depth1, depth2, depth3]
+    depths = []
+    for depth in tmp_depths:
+        if depth > 0:
+            depths.append(depth)
+    depth = statistics.mean(depths)
+
+    return length, width, depth
         
         
         
@@ -303,7 +348,7 @@ def calc_all(clusters, d2_th, d3_th):
     radii_list = []
     lengths_list = []
     widths_list = []
-##    zs_list = []
+    depths_list = []
     mean_vol = None
     med_vol = None
     mean_locs = None
@@ -364,36 +409,13 @@ def calc_all(clusters, d2_th, d3_th):
             loc_list.append(loc_num)
             radii_list.append(radius)
 
-##            # Calculate maximal distances in x,y,z axes
-##            corners = list(set(functools.reduce(lambda x,y: x+y,
-##                                                [[(a,b,c) for a,b,c in x] for x in points_3d[hull.simplices]])))
-##            mx_x_dist = 0
-##            mx_y_dist = 0
-##            mx_z_dist = 0
-##            l = len(corners)
-##
-##            for p1 in corners:
-##                for p2 in corners:
-##                    if p1 != p2:
-##                        x_dist = abs(p2[0]-p1[0])
-##                        if x_dist >= mx_x_dist:
-##                            mx_x_dist = x_dist
-##                        y_dist = abs(p2[1]-p1[1])
-##                        if y_dist >= mx_y_dist:
-##                            mx_y_dist = y_dist
-##                        z_dist = abs(p2[2]-p1[2])
-##                        if z_dist >= mx_z_dist:
-##                            mx_z_dist = z_dist
-##            xs_list.append(mx_x_dist)
-##            ys_list.append(mx_y_dist)
-##            zs_list.append(mx_z_dist)
-
             # Calculate maximal distances in x,y axes
-            length, width = calc_cluster_hw(cluster)
+            length, width, depth = calc_cluster_hw(cluster)
             lengths_list.append(length)
-            width_list.append(width)
+            widths_list.append(width)
+            depths_list.append(depth)
             
-            clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, length, width, cluster]
+            clst_lst = [int(label), loc_num, volume, radius, density_2d, density_3d, length, width, depth, cluster]
             gen_lst.append(clst_lst)
             cluster_props_dict[label] = clst_lst[1:]
 
@@ -569,8 +591,10 @@ def extract_AP(clusters, d2_th, d3_th):
     clstr_props_df['3D Density'] = [item[5] for item in gen_list]
     clstr_props_df['Length'] = [item[6] for item in gen_list]
     clstr_props_df['Width'] = [item[7] for item in gen_list]
-    clstr_props_df['Cluster'] = [item[8] for item in gen_list]
+    clstr_props_df['Depth'] = [item[8] for item in gen_list]
+    clstr_props_df['Cluster'] = [item[9] for item in gen_list]
     
 ##    print(clstr_props_df)
     
     return img_props_df, clstr_props_df, cluster_props_dict, noise
+    
