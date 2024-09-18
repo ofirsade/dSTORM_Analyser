@@ -88,6 +88,8 @@ def plot_res(xyzl, cpd, fname, alg, output_path, dt_string, show_plts):
 ##                    colorscale = px.colors.cyclical.HSV,
                     opacity = 0.5),
                 hovertemplate = ("<b>{text}</b><br><br>".format(text = 'Cluster #' + str(i))
+                                 + "x: %{x}<br>"
+                                 + "y: %{y}<br>"
                                  + "Loc No.: {a}<br>".format(a = tmp_cpd[0])
                                  + "Volume: {b}<br>".format(b = tmp_cpd[1])
                                  + "Radius: {c}<br>".format(c = tmp_cpd[2])
@@ -110,7 +112,7 @@ def plot_res(xyzl, cpd, fname, alg, output_path, dt_string, show_plts):
 
 
     html_name = dt_string + ' ' + fname + ' ' + alg + '.html'
-    html_path = os.path.join(output_path, html_name)
+    html_path = os.path.join(output_path, '', html_name)
     fig.write_html(html_path)
     if show_plts:
         fig.show()
@@ -145,6 +147,94 @@ def plot_2D_image(pts_df, fname, output_path, dt_string, show_plts):
     if show_plts:
         fig.show()
 ##    fig.show(config=config)   
+
+
+def plot_res_3d(xyzl, cpd, fname, alg, output_path, dt_string, show_plts):
+    """
+    @params:
+    @@xyzl -
+    @@cpd - dict, [loc_num, volume, radius, density_2d, density_3d]
+    @@fname -
+    @@alg -
+    @@output_path -
+    """
+
+    fig = make_subplots(
+        rows = 1, 
+        cols = 1, 
+##        vertical_spacing=0.05,
+##        subplot_titles = fname + alg
+    )
+
+    bg_df = xyzl.loc[xyzl['Label'] == -1]
+    clustered_df = xyzl.loc[xyzl['Label'] != -1]
+    unique_labels = set([int(k) for k in cpd.keys()]) #set(clustered_df['Label'].values.tolist())
+    # Probe 0
+    fig.add_trace(
+        go.Scatter3d(
+            x = bg_df['x'].values,
+            y = bg_df['y'].values,
+            z = bg_df['z'].values,
+            mode = 'markers',
+            marker=dict(
+                color='grey',           # set color to an array/list of desired values
+                opacity=0.1
+            )
+        ),
+        row = 1, col = 1
+    ) 
+        
+    # Draw clusters
+    for i in unique_labels:
+        pc = clustered_df.loc[clustered_df['Label'] == i]
+        tmp_cpd = cpd[str(i)]
+        
+        fig.add_trace(
+            go.Scatter(
+                x = pc['x'].values,
+                y = pc['y'].values,
+                z = pc['z'].values,
+                mode = 'markers',
+                marker = dict(
+                    color = int(i), #cmap(np.sqrt(colocalization[i])),    
+##                    colorscale = 'rainbow',
+##                    colorscale = px.colors.qualitative.Pastel2,
+##                    colorscale = px.colors.cyclical.HSV,
+                    opacity = 0.5),
+                hovertemplate = ("<b>{text}</b><br><br>".format(text = 'Cluster #' + str(i))
+                                 + "x: %{x}<br>"
+                                 + "y: %{y}<br>"
+                                 + "z: %{z}<br>"
+                                 + "Loc No.: {a}<br>".format(a = tmp_cpd[0])
+                                 + "Volume: {b}<br>".format(b = tmp_cpd[1])
+                                 + "Radius: {c}<br>".format(c = tmp_cpd[2])
+                                 + "Density (2D): {d}<br>".format(d = tmp_cpd[3])
+                                 + "Density (3D): {e}".format(e = tmp_cpd[4])
+                                 + "<extra></extra>")),
+            row = 1, col = 1)
+    
+##    fig.update_xaxes(range = [0, 19000], row = 1, col = 1)     
+    fig.update_yaxes(scaleanchor = 'x', scaleratio = 1, row = 1, col = 1)
+    fig.update_layout({'plot_bgcolor': 'whitesmoke'})
+    fig.update_layout(showlegend = False)
+    fig.update_layout(title = alg + ' ' + fname)
+    fig.update_layout(hoverlabel = dict(font_size = 18,
+                                        font_color = 'white',
+                                        font_family="Rockwell"))
+    fig.update_xaxes(range=[0, 18e3], row=1, col=1)     
+##    fig.update_layout(template="ggplot2", height=800, showlegend=False)
+    fig.update_layout(height=800, showlegend=False)
+
+
+    html_name = dt_string + ' ' + fname + ' ' + alg + '.html'
+    html_path = os.path.join(output_path, '', html_name)
+    fig.write_html(html_path)
+    if show_plts:
+        fig.show()
+##    show_in_window(fig, html_name)
+
+
+
 
 '''
 def plot_3d_res(new_lst, name, minL, minC, sig):
